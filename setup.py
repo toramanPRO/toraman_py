@@ -5,7 +5,7 @@ with open("README.md", "r") as input_file:
 
 setuptools.setup(
     name="toraman",
-    version="0.0.2dev",
+    version="0.0.2",
     author="Çağatay Onur Şengör",
     author_email="contact@csengor.com",
     description="A computer assisted translation tool package",
