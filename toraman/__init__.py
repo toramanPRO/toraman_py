@@ -146,9 +146,17 @@ class BilingualFile:
                 internal_file = internal_file[0]
                 for paragraph in internal_file.findall('.//w:p', self.nsmap):
                     for paragraph_placeholder in paragraph.findall('toraman:paragraph', self.t_nsmap):
+                        current_elem_i = paragraph.index(paragraph_placeholder)
                         paragraph.remove(paragraph_placeholder)
                         for final_run in final_paragraphs[int(paragraph_placeholder.attrib['no'])-1]:
-                            paragraph.append(etree.fromstring(etree.tostring(final_run)))
+                            if len(final_run) == 0:
+                                pass
+                            elif len(final_run) == 1 and final_run[0].tag.endswith('rPr'):
+                                pass
+                            else:
+                                paragraph.insert(current_elem_i,
+                                                etree.fromstring(etree.tostring(final_run)))
+                                current_elem_i += 1
 
             with zipfile.ZipFile(source_file_path) as zf:
                 for name in zf.namelist():
@@ -232,6 +240,17 @@ class SourceFile:
             def extract_p_run(r_element, p_element, paragraph_continues):
                 toraman_run = etree.Element('{{{0}}}run'.format(self.t_nsmap['toraman']), nsmap=self.t_nsmap)
                 run_properties = r_element.find('w:rPr', self.nsmap)
+                if len(r_element) == 1:
+                    if (r_element[0].tag == '{{{0}}}br'.format(self.nsmap['w']) and
+                        b'type="page"' in etree.tostring(r_element[0])):
+                        paragraph_continues = False
+
+                        return paragraph_continues
+
+                    elif (not paragraph_continues and run_properties is not None):
+
+                        return paragraph_continues                    
+
                 if run_properties is not None:
                     for run_property in run_properties:
                         if ('{{{0}}}val'.format(self.nsmap['w']) in run_property.attrib
