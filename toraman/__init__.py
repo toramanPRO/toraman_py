@@ -514,7 +514,7 @@ class SourceFile:
                     if _hit is not None:
                         end_sentence_punctuation.append(_hit)
                 for to_be_replaced in end_sentence_punctuation:
-                    toraman_t.text = regex.sub(''.join(to_be_replaced),
+                    toraman_t.text = regex.sub(''.join(to_be_replaced) + '(?!placeholder)',
                                                ''.join((to_be_replaced[0],
                                                         to_be_replaced[1],
                                                         to_be_replaced[2],
@@ -533,13 +533,12 @@ class SourceFile:
                 if toraman_element.tag == '{{{0}}}text'.format(self.t_nsmap['toraman']):
                     _text = toraman_element.text.split(placeholders[1])
                     for _text_i in range(len(_text)):
-                        if _text[_text_i] != '':
-                            if _text_i != 0:
-                                organised_paragraph[0].append(etree.Element('{{{0}}}source'.format(self.t_nsmap['toraman']),
-                                                                            nsmap=self.t_nsmap))
-                            organised_paragraph[0][-1].append(etree.Element('{{{0}}}text'.format(self.t_nsmap['toraman']),
-                                                              nsmap=self.t_nsmap))
-                            organised_paragraph[0][-1][-1].text = _text[_text_i]
+                        if _text_i != 0:
+                            organised_paragraph[0].append(etree.Element('{{{0}}}source'.format(self.t_nsmap['toraman']),
+                                                                        nsmap=self.t_nsmap))
+                        organised_paragraph[0][-1].append(etree.Element('{{{0}}}text'.format(self.t_nsmap['toraman']),
+                                                            nsmap=self.t_nsmap))
+                        organised_paragraph[0][-1][-1].text = _text[_text_i]
                 elif (toraman_element.tag == '{{{0}}}br'.format(self.t_nsmap['toraman'])
                         and 'type' in toraman_element.attrib 
                         and toraman_element.attrib['type'] == 'page'):
@@ -548,8 +547,27 @@ class SourceFile:
                     organised_paragraph[0].append(etree.Element('{{{0}}}non-text-segment'.format(self.t_nsmap['toraman']),
                                                                 nsmap=self.t_nsmap))
                     organised_paragraph[0][-1].append(toraman_element)
+                elif toraman_element.tag == '{{{0}}}br'.format(self.t_nsmap['toraman']):
+                    if (len(organised_paragraph[0][-1]) == 0
+                            or (len(organised_paragraph[0][-1]) == 1
+                            and organised_paragraph[0][-1][-1].tag == '{{{0}}}text'.format(self.t_nsmap['toraman'])
+                            and organised_paragraph[0][-1][-1].text is '')):
+                        organised_paragraph[0] = organised_paragraph[0][:-1]
+                        organised_paragraph[0].append(etree.Element('{{{0}}}non-text-segment'.format(self.t_nsmap['toraman']),
+                                                                    nsmap=self.t_nsmap))
+
+                    organised_paragraph[0][-1].append(toraman_element)
+                    organised_paragraph[0].append(etree.Element('{{{0}}}source'.format(self.t_nsmap['toraman']),
+                                                        nsmap=self.t_nsmap))
+
                 else:
                     organised_paragraph[0][-1].append(toraman_element)
+
+            if (len(organised_paragraph[0][-1]) == 0
+                    or (len(organised_paragraph[0][-1]) == 1
+                    and organised_paragraph[0][-1][-1].tag == '{{{0}}}text'.format(self.t_nsmap['toraman'])
+                    and organised_paragraph[0][-1][-1].text is '')):
+                organised_paragraph[0] = organised_paragraph[0][:-1]
 
             self.paragraphs[paragraph_index] = organised_paragraph[0]
 
