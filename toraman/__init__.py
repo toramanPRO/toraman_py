@@ -541,6 +541,7 @@ class SourceFile:
                                                               nsmap=self.t_nsmap))
                             organised_paragraph[0][-1][-1].text = _text[_text_i]
                 elif (toraman_element.tag == '{{{0}}}br'.format(self.t_nsmap['toraman'])
+                        and 'type' in toraman_element.attrib 
                         and toraman_element.attrib['type'] == 'page'):
                     if len(organised_paragraph[0][-1]) == 0:
                         organised_paragraph[0] = organised_paragraph[0][:-1]
