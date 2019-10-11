@@ -1,9 +1,11 @@
 from hashlib import sha256
+import datetime
 import random
 import os
 import string
 import zipfile
 
+import Levenshtein
 from lxml import etree
 import regex
 
@@ -600,5 +602,72 @@ class SourceFile:
             bilingual_file[-1].append(new_sf_element)
 
         bilingual_file.getroottree().write(os.path.join(output_directory, self.file_name) + '.xml',
+                                           encoding='UTF-8',
+                                           xml_declaration=True)
+
+
+class TranslationMemory():
+    def __init__(self, tm_path, source_language, target_language):
+        self.tm_path = tm_path
+        if os.path.exists(tm_path):
+            self.translation_memory = etree.parse(tm_path).getroot()
+
+            self.source_language = self.translation_memory[0].attrib['srclang']
+            self.target_language = self.translation_memory[0].attrib['trgtlang']
+
+        else:
+            self.source_language = source_language
+            self.target_language = target_language
+
+            self.translation_memory = etree.Element('{{{0}}}tm'.format(nsmap['toraman']), nsmap=nsmap)
+            self.translation_memory.attrib['version'] = '0.0.1'
+            self.translation_memory.append(etree.Element('{{{0}}}header'.format(nsmap['toraman'])))
+            self.translation_memory[0].attrib['creationtool'] = 'toraman'
+            self.translation_memory[0].attrib['creationtoolversion'] = __version__
+            self.translation_memory[0].attrib['creationdate'] = datetime.datetime.utcnow().strftime(r'%Y%M%dT%H%M%SZ')
+            self.translation_memory[0].attrib['datatype'] = 'PlainText'
+            self.translation_memory[0].attrib['segtype'] = 'sentence'
+            self.translation_memory[0].attrib['adminlang'] = 'en'
+            self.translation_memory[0].attrib['srclang'] = self.source_language
+            self.translation_memory[0].attrib['trgtlang'] = self.target_language
+            self.translation_memory.append(etree.Element('{{{0}}}body'.format(nsmap['toraman'])))
+
+            self.translation_memory.getroottree().write(self.tm_path,
+                                           encoding='UTF-8',
+                                           xml_declaration=True)
+
+    def lookup(self, source_segment):
+        _segment_hits = []
+
+        source_segment = etree.tostring(source_segment)
+
+        for translation_unit in self.translation_memory[1]:
+            saved_source_segment = etree.tostring(translation_unit[0])
+            if Levenshtein.ratio(saved_source_segment, source_segment) >= 0.70:
+                saved_target_segment = etree.tostring(translation_unit[1])
+                _segment_hits.append((Levenshtein.ratio(saved_source_segment, source_segment),
+                                    etree.fromstring(saved_source_segment),
+                                    etree.fromstring(saved_target_segment)))
+
+        return _segment_hits
+
+    def submit_segment(self, source_segment, target_segment):
+        source_segment = etree.tostring(source_segment)
+        target_segment = etree.tostring(target_segment)
+
+        for translation_unit in self.translation_memory[1]:
+            if etree.tostring(translation_unit[0]) == source_segment:
+                translation_unit[1] = etree.fromstring(target_segment)
+                translation_unit.attrib['changedate'] = datetime.datetime.utcnow().strftime(r'%Y%M%dT%H%M%SZ')
+                break
+        else:
+            translation_unit = etree.Element('{{{0}}}tu'.format(nsmap['toraman']))
+            translation_unit.attrib['creationdate'] = datetime.datetime.utcnow().strftime(r'%Y%M%dT%H%M%SZ')
+            translation_unit.append(etree.fromstring(source_segment))
+            translation_unit.append(etree.fromstring(target_segment))
+
+            self.translation_memory[1].append(translation_unit)
+
+        self.translation_memory.getroottree().write(self.tm_path,
                                            encoding='UTF-8',
                                            xml_declaration=True)
