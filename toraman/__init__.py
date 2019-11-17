@@ -9,7 +9,7 @@ import Levenshtein
 from lxml import etree
 import regex
 
-__version__ = '0.1.0'
+__version__ = '0.1.1'
 
 nsmap = {'toraman': 'https://cat.toraman.pro'}
 
