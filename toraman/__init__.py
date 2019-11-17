@@ -669,6 +669,8 @@ class TranslationMemory():
                 _segment_hits.append((Levenshtein.ratio(saved_source_segment, source_segment),
                                     etree.fromstring(saved_source_segment),
                                     etree.fromstring(saved_target_segment)))
+        else:
+            _segment_hits.sort(reverse=True)
 
         return _segment_hits
 
