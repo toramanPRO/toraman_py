@@ -512,6 +512,7 @@ class SourceFile:
                             pass
                         elif sub_element.tag == '{{{0}}}tc'.format(self.nsmap['w']):
                             for tc_p_element in sub_element.findall('w:p', self.nsmap):
+                                add_to_last_paragraph = False
                                 for sub_tc_p_element in tc_p_element:
                                     if sub_tc_p_element.tag == '{{{0}}}r'.format(self.nsmap['w']):
                                         add_to_last_paragraph = extract_p_run(sub_tc_p_element,
