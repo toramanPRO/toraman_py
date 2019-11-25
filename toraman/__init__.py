@@ -951,7 +951,11 @@ class SourceFile:
                                                         nsmap=self.t_nsmap))
             for toraman_element in organised_paragraph[1]:
                 if toraman_element.tag == '{{{0}}}text'.format(self.t_nsmap['toraman']):
+                    if toraman_element.text is None:
+                        continue
                     _text = toraman_element.text.split(placeholders[1])
+                    if _text[-1] is '':
+                        _text = _text[:-1]
                     for _text_i in range(len(_text)):
                         if _text_i != 0:
                             organised_paragraph[0].append(etree.Element('{{{0}}}source'.format(self.t_nsmap['toraman']),
@@ -988,6 +992,98 @@ class SourceFile:
                     and organised_paragraph[0][-1][-1].tag == '{{{0}}}text'.format(self.t_nsmap['toraman'])
                     and organised_paragraph[0][-1][-1].text is '')):
                 organised_paragraph[0] = organised_paragraph[0][:-1]
+
+            for organised_segment in organised_paragraph[0]:
+                if organised_segment.tag == '{{{0}}}non-text-segment'.format(self.t_nsmap['toraman']):
+                    continue
+                if (organised_segment[0].tag == '{{{0}}}tag'.format(self.t_nsmap['toraman'])
+                and organised_segment[0].attrib['type'] == 'end'):
+                    organised_segment.remove(organised_segment[0])
+                if (organised_segment[-1].tag == '{{{0}}}tag'.format(self.t_nsmap['toraman'])
+                and organised_segment[-1].attrib['type'] == 'beginning'):
+                    organised_segment.remove(organised_segment[-1])
+                
+                active_ftags = []
+                no_text_yet = True
+                items_to_nontext = []
+                perform_move = False
+                for organised_segment_child in organised_segment:
+                    if organised_segment_child.tag == '{{{0}}}tag'.format(self.t_nsmap['toraman']):
+                        if organised_segment_child.attrib['type'] == 'beginning':
+                            active_ftags.append(organised_segment_child.attrib['no'])
+                        elif organised_segment_child.attrib['type'] == 'end':
+                            if organised_segment_child.attrib['no'] in active_ftags:
+                                active_ftags.remove(organised_segment_child.attrib['no'])
+                            else:
+                                _tag = organised_segment_child.__deepcopy__(True)
+                                _tag.attrib['type'] = 'beginning'
+                                organised_segment.insert(0, _tag)
+                        
+                    if no_text_yet:
+                        if organised_segment_child.tag == '{{{0}}}text'.format(self.t_nsmap['toraman']):
+                            leading_space = regex.match(r'\s+', organised_segment_child.text)
+                            if leading_space:
+                                leading_space = leading_space.group()
+                                if leading_space == organised_segment_child.text:
+                                    items_to_nontext.append(organised_segment_child)
+                                else:
+                                    organised_segment_child.text = organised_segment_child.text[len(leading_space):]
+                                    items_to_nontext.append(etree.Element('{{{0}}}text'.format(self.t_nsmap['toraman'])))
+                                    items_to_nontext[-1].text = leading_space
+                                perform_move = True
+                            no_text_yet = False
+                        elif organised_segment_child.tag == '{{{0}}}tag'.format(self.t_nsmap['toraman']):
+                            items_to_nontext.append(organised_segment_child)
+                        
+                        elif (organised_segment_child.tag == '{{{0}}}br'.format(self.t_nsmap['toraman'])
+                        or organised_segment_child.tag == '{{{0}}}tab'.format(self.t_nsmap['toraman'])):
+                            items_to_nontext.append(organised_segment_child)
+                            perform_move = True
+                        else:
+                            no_text_yet = False
+
+                else:
+                    if active_ftags:
+                        for active_ftag in active_ftags:
+                            organised_segment.append(etree.Element('{{{0}}}tag'.format(self.t_nsmap['toraman'])))
+                            organised_segment[-1].attrib['no'] = active_ftag
+                            organised_segment[-1].attrib['type'] = 'end'
+                        else:
+                            active_ftags = []
+
+                    if items_to_nontext and perform_move:
+                        organised_segment_i = organised_paragraph[0].index(organised_segment)
+                        if organised_paragraph[0][organised_segment_i-1].tag != '{{{0}}}non-text-segment'.format(self.t_nsmap['toraman']):
+                            organised_paragraph[0].insert(organised_segment_i, etree.Element('{{{0}}}non-text-segment'.format(self.t_nsmap['toraman'])))
+                        else:
+                            organised_segment_i -= 1
+
+                        for item_to_nontext in items_to_nontext:
+                            if item_to_nontext.tag == '{{{0}}}.tag'.format(self.t_nsmap['toraman']):
+                                if item_to_nontext.attrib['type'] == 'beginning':
+                                    active_ftags.append(item_to_nontext.attrib['no'])
+                                else:
+                                    active_ftags.remove(item_to_nontext.attrib['no'])
+                            organised_paragraph[0][organised_segment_i].append(item_to_nontext)
+                        else:
+                            if active_ftags:
+                                _first_child = organised_paragraph[0][organised_segment_i+1][0]
+                                if (_first_child.tag == '{{{0}}}.tag'.format(self.t_nsmap['toraman'])
+                                and _first_child.attrib['type'] == 'end'
+                                and _first_child.attrib['no'] in active_ftags):
+                                    organised_paragraph[0][organised_segment_i].append(_first_child)
+                                else:
+                                    _tag = etree.Element('{{{0}}}.tag'.format(self.t_nsmap['toraman']))
+                                    _tag.attrib['no'] = active_ftags[0]
+                                    _tag.attrib['type'] = 'end'
+                                    organised_paragraph[0][organised_segment_i].append(_tag)
+                                    
+                                    _tag = _tag.__deepcopy__(True)
+                                    _tag.attrib['type'] = 'beginning'
+                                    organised_paragraph[0][organised_segment_i+1].insert(0, _tag)
+
+                    elif no_text_yet:
+                        organised_segment.tag = '{{{0}}}non-text-segment'.format(self.t_nsmap['toraman'])
 
             self.paragraphs[paragraph_index] = organised_paragraph[0]
 
