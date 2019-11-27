@@ -566,10 +566,21 @@ class SourceFile:
                         self.paragraphs[-1][-1][0].append(etree.Element('{{{0}}}br'.format(nsmap['toraman'])))
                     elif span_child.tag == '{{{0}}}tab'.format(self.nsmap['text']):
                         self.paragraphs[-1][-1][0].append(etree.Element('{{{0}}}tab'.format(nsmap['toraman'])))
+                    elif span_child.tag == '{{{0}}}s'.format(self.nsmap['text']):
+                        if (len(self.paragraphs[-1][-1][0]) == 0
+                        or self.paragraphs[-1][-1][0][-1].tag != '{{{0}}}text'.format(nsmap['toraman'])):
+                            self.paragraphs[-1][-1][0].append(etree.Element('{{{0}}}text'.format(nsmap['toraman'])))
+                            self.paragraphs[-1][-1][0][-1].text = ' '
+                        else:
+                            self.paragraphs[-1][-1][0][-1].text += ' '
 
                     if span_child.tail is not None:
-                        self.paragraphs[-1][-1][0].append(etree.Element('{{{0}}}text'.format(nsmap['toraman'])))
-                        self.paragraphs[-1][-1][0][-1].text = span_child.tail
+                        if (len(self.paragraphs[-1][-1][0]) == 0
+                        or self.paragraphs[-1][-1][0][-1].tag != '{{{0}}}text'.format(nsmap['toraman'])):
+                            self.paragraphs[-1][-1][0].append(etree.Element('{{{0}}}text'.format(nsmap['toraman'])))
+                            self.paragraphs[-1][-1][0][-1].text = span_child.tail
+                        else:
+                            self.paragraphs[-1][-1][0][-1].text += span_child.tail
 
             for master_file in self.master_files:
                 master_file[1] = etree.parse(master_file[1])
@@ -1181,40 +1192,59 @@ class TranslationMemory():
                                            encoding='UTF-8',
                                            xml_declaration=True)
 
-    def lookup(self, source_segment):
+    def lookup(self, source_segment, match=0.7):
         _segment_hits = []
 
-        source_segment = etree.tostring(source_segment)
+        segment_query = self.bf_segment_to_tm_segment(source_segment)
 
         for translation_unit in self.translation_memory[1]:
-            saved_source_segment = etree.tostring(translation_unit[0])
-            if Levenshtein.ratio(saved_source_segment, source_segment) >= 0.70:
-                saved_target_segment = etree.tostring(translation_unit[1])
-                _segment_hits.append((Levenshtein.ratio(saved_source_segment, source_segment),
-                                    etree.fromstring(saved_source_segment),
-                                    etree.fromstring(saved_target_segment)))
+            levenshtein_ratio = Levenshtein.ratio(translation_unit[1].text, segment_query)
+            if levenshtein_ratio >= match:
+                _segment_hits.append((levenshtein_ratio,
+                                    translation_unit[0].__deepcopy__(True),
+                                    translation_unit[2].__deepcopy__(True)))
         else:
             _segment_hits.sort(reverse=True)
 
         return _segment_hits
 
+    def bf_segment_to_tm_segment(self, segment):
+        target_segment = ''
+
+        for segment_child in segment:
+            if segment_child.tag == '{{{0}}}text'.format(nsmap['toraman']):
+                target_segment += segment_child.text
+            elif segment_child.tag == '{{{0}}}tag'.format(nsmap['toraman']):
+                if segment_child.attrib['type'] == 'beginning':
+                    target_segment += '<tag{0}>'.format(segment_child.attrib['no'])
+                else:
+                    target_segment += '</tag{0}>'.format(segment_child.attrib['no'])
+            else:
+                _tag_label = segment_child.tag.split('}')[1]
+                if 'no' in segment_child.attrib:
+                    _tag_label += segment_child.attrib['no']
+                target_segment += '<{0}/>'.format(_tag_label)
+
+        return target_segment
+
     def submit_segment(self, source_segment, target_segment):
-        source_segment = etree.tostring(source_segment)
-        target_segment = etree.tostring(target_segment)
+        segment_query = self.bf_segment_to_tm_segment(source_segment)
 
         for translation_unit in self.translation_memory[1]:
-            if etree.tostring(translation_unit[0]) == source_segment:
-                translation_unit[1] = etree.fromstring(target_segment)
+            if translation_unit[1].text == segment_query:
+                translation_unit[2] = target_segment.__deepcopy__(True)
                 translation_unit.attrib['changedate'] = datetime.datetime.utcnow().strftime(r'%Y%M%dT%H%M%SZ')
                 break
         else:
             translation_unit = etree.Element('{{{0}}}tu'.format(nsmap['toraman']))
             translation_unit.attrib['creationdate'] = datetime.datetime.utcnow().strftime(r'%Y%M%dT%H%M%SZ')
-            translation_unit.append(etree.fromstring(source_segment))
-            translation_unit.append(etree.fromstring(target_segment))
+            translation_unit.append(source_segment.__deepcopy__(True))
+            translation_unit.append(etree.Element('{{{0}}}query'.format(nsmap['toraman'])))
+            translation_unit[1].text = segment_query
+            translation_unit.append(target_segment.__deepcopy__(True))
 
             self.translation_memory[1].append(translation_unit)
 
         self.translation_memory.getroottree().write(self.tm_path,
-                                           encoding='UTF-8',
-                                           xml_declaration=True)
+                                                    encoding='UTF-8',
+                                                    xml_declaration=True)
