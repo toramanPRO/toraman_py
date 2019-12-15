@@ -1,7 +1,11 @@
+import datetime
 import re
 
 from html import escape
 from lxml import etree
+
+def get_current_time_in_utc():
+    return datetime.datetime.utcnow().strftime(r'%Y%M%dT%H%M%SZ')
 
 def html_to_segment(source_or_target_segment, segment_designation, nsmap={'toraman': 'https://cat.toraman.pro'}):
 
