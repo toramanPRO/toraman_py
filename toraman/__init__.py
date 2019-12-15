@@ -1014,7 +1014,7 @@ class SourceFile:
                 if (organised_segment[-1].tag == '{{{0}}}tag'.format(self.t_nsmap['toraman'])
                 and organised_segment[-1].attrib['type'] == 'beginning'):
                     organised_segment.remove(organised_segment[-1])
-                
+
                 active_ftags = []
                 no_text_yet = True
                 items_to_nontext = []
@@ -1030,7 +1030,7 @@ class SourceFile:
                                 _tag = organised_segment_child.__deepcopy__(True)
                                 _tag.attrib['type'] = 'beginning'
                                 organised_segment.insert(0, _tag)
-                        
+
                     if no_text_yet:
                         if organised_segment_child.tag == '{{{0}}}text'.format(self.t_nsmap['toraman']):
                             leading_space = regex.match(r'\s+', organised_segment_child.text)
@@ -1046,7 +1046,7 @@ class SourceFile:
                             no_text_yet = False
                         elif organised_segment_child.tag == '{{{0}}}tag'.format(self.t_nsmap['toraman']):
                             items_to_nontext.append(organised_segment_child)
-                        
+
                         elif (organised_segment_child.tag == '{{{0}}}br'.format(self.t_nsmap['toraman'])
                         or organised_segment_child.tag == '{{{0}}}tab'.format(self.t_nsmap['toraman'])):
                             items_to_nontext.append(organised_segment_child)
@@ -1089,7 +1089,7 @@ class SourceFile:
                                     _tag.attrib['no'] = active_ftags[0]
                                     _tag.attrib['type'] = 'end'
                                     organised_paragraph[0][organised_segment_i].append(_tag)
-                                    
+
                                     _tag = _tag.__deepcopy__(True)
                                     _tag.attrib['type'] = 'beginning'
                                     organised_paragraph[0][organised_segment_i+1].insert(0, _tag)
