@@ -9,6 +9,8 @@ import Levenshtein
 from lxml import etree
 import regex
 
+from .utils import get_current_time_in_utc
+
 __version__ = '0.2.0'
 
 nsmap = {'toraman': 'https://cat.toraman.pro'}
@@ -321,7 +323,7 @@ class BilingualFile:
                                           encoding='UTF-8',
                                           xml_declaration=True)
 
-    def update_segment(self, segment_status, segment_target, paragraph_no, segment_no):
+    def update_segment(self, segment_status, segment_target, paragraph_no, segment_no, author_id):
 
         assert type(segment_target) == etree._Element or type(segment_target) == str
 
@@ -342,6 +344,13 @@ class BilingualFile:
 
         segment[1] = xml_segment[1]
         segment[2] = xml_segment[2]
+
+        if 'creationdate' in xml_segment.attrib:
+            xml_segment.attrib['changedate'] = get_current_time_in_utc()
+            xml_segment.attrib['changeid'] = author_id
+        else:
+            xml_segment.attrib['creationdate'] = get_current_time_in_utc()
+            xml_segment.attrib['creationid'] = author_id
 
         self.paragraphs[paragraph_no - 1][sub_p_id] = segment
 
@@ -1180,7 +1189,7 @@ class TranslationMemory():
             self.translation_memory.append(etree.Element('{{{0}}}header'.format(nsmap['toraman'])))
             self.translation_memory[0].attrib['creationtool'] = 'toraman'
             self.translation_memory[0].attrib['creationtoolversion'] = __version__
-            self.translation_memory[0].attrib['creationdate'] = datetime.datetime.utcnow().strftime(r'%Y%M%dT%H%M%SZ')
+            self.translation_memory[0].attrib['creationdate'] = get_current_time_in_utc()
             self.translation_memory[0].attrib['datatype'] = 'PlainText'
             self.translation_memory[0].attrib['segtype'] = 'sentence'
             self.translation_memory[0].attrib['adminlang'] = 'en'
@@ -1227,17 +1236,19 @@ class TranslationMemory():
 
         return target_segment
 
-    def submit_segment(self, source_segment, target_segment):
+    def submit_segment(self, source_segment, target_segment, author_id):
         segment_query = self.bf_segment_to_tm_segment(source_segment)
 
         for translation_unit in self.translation_memory[1]:
             if translation_unit[1].text == segment_query:
                 translation_unit[2] = target_segment.__deepcopy__(True)
-                translation_unit.attrib['changedate'] = datetime.datetime.utcnow().strftime(r'%Y%M%dT%H%M%SZ')
+                translation_unit.attrib['changedate'] = get_current_time_in_utc()
+                translation_unit.attrib['changeid'] = author_id
                 break
         else:
             translation_unit = etree.Element('{{{0}}}tu'.format(nsmap['toraman']))
-            translation_unit.attrib['creationdate'] = datetime.datetime.utcnow().strftime(r'%Y%M%dT%H%M%SZ')
+            translation_unit.attrib['creationdate'] = get_current_time_in_utc()
+            translation_unit.attrib['creationid'] = author_id
             translation_unit.append(source_segment.__deepcopy__(True))
             translation_unit.append(etree.Element('{{{0}}}query'.format(nsmap['toraman'])))
             translation_unit[1].text = segment_query
