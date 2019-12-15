@@ -11,7 +11,7 @@ import regex
 
 from .utils import get_current_time_in_utc
 
-__version__ = '0.2.0'
+__version__ = '0.3.0'
 
 nsmap = {'toraman': 'https://cat.toraman.pro'}
 
