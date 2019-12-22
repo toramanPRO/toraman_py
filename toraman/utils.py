@@ -52,3 +52,22 @@ def segment_to_html(source_or_target_segment):
             segment_html += etree.tostring(tag).decode()
 
     return segment_html
+
+def segment_to_tm_segment(segment):
+    target_segment = ''
+
+    for segment_child in segment:
+        if segment_child.tag == '{{{0}}}text'.format(nsmap['toraman']):
+            target_segment += segment_child.text
+        elif segment_child.tag == '{{{0}}}tag'.format(nsmap['toraman']):
+            if segment_child.attrib['type'] == 'beginning':
+                target_segment += '<tag{0}>'.format(segment_child.attrib['no'])
+            else:
+                target_segment += '</tag{0}>'.format(segment_child.attrib['no'])
+        else:
+            _tag_label = segment_child.tag.split('}')[1]
+            if 'no' in segment_child.attrib:
+                _tag_label += segment_child.attrib['no']
+            target_segment += '<{0}/>'.format(_tag_label)
+
+    return target_segment

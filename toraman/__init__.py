@@ -9,7 +9,7 @@ import Levenshtein
 from lxml import etree
 import regex
 
-from .utils import get_current_time_in_utc
+from .utils import get_current_time_in_utc, segment_to_tm_segment
 
 __version__ = '0.3.0'
 
@@ -1204,7 +1204,7 @@ class TranslationMemory():
     def lookup(self, source_segment, match=0.7):
         _segment_hits = []
 
-        segment_query = self.bf_segment_to_tm_segment(source_segment)
+        segment_query = segment_to_tm_segment(source_segment)
 
         for translation_unit in self.translation_memory[1]:
             levenshtein_ratio = Levenshtein.ratio(translation_unit[1].text, segment_query)
@@ -1217,27 +1217,8 @@ class TranslationMemory():
 
         return _segment_hits
 
-    def bf_segment_to_tm_segment(self, segment):
-        target_segment = ''
-
-        for segment_child in segment:
-            if segment_child.tag == '{{{0}}}text'.format(nsmap['toraman']):
-                target_segment += segment_child.text
-            elif segment_child.tag == '{{{0}}}tag'.format(nsmap['toraman']):
-                if segment_child.attrib['type'] == 'beginning':
-                    target_segment += '<tag{0}>'.format(segment_child.attrib['no'])
-                else:
-                    target_segment += '</tag{0}>'.format(segment_child.attrib['no'])
-            else:
-                _tag_label = segment_child.tag.split('}')[1]
-                if 'no' in segment_child.attrib:
-                    _tag_label += segment_child.attrib['no']
-                target_segment += '<{0}/>'.format(_tag_label)
-
-        return target_segment
-
     def submit_segment(self, source_segment, target_segment, author_id):
-        segment_query = self.bf_segment_to_tm_segment(source_segment)
+        segment_query = segment_to_tm_segment(source_segment)
 
         for translation_unit in self.translation_memory[1]:
             if translation_unit[1].text == segment_query:
