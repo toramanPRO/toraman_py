@@ -4,6 +4,8 @@ import re
 from html import escape
 from lxml import etree
 
+nsmap = {'toraman': 'https://cat.toraman.pro'}
+
 def get_current_time_in_utc():
     return datetime.datetime.utcnow().strftime(r'%Y%M%dT%H%M%SZ')
 
