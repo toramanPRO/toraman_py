@@ -1,6 +1,6 @@
 import setuptools
 
-from toraman import __version__
+from toraman.version import __version__
 
 with open('README.md', 'r') as input_file:
     long_description = input_file.read()
