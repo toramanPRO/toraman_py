@@ -37,10 +37,13 @@ class TranslationMemory():
                                            encoding='UTF-8',
                                            xml_declaration=True)
 
-    def lookup(self, source_segment, match=0.7):
+    def lookup(self, source_segment, match=0.7, convert_segment=True):
         _segment_hits = []
 
-        segment_query = segment_to_tm_segment(source_segment)
+        if convert_segment:
+            segment_query = segment_to_tm_segment(source_segment)
+        else:
+            segment_query = source_segment
 
         for translation_unit in self.translation_memory[1]:
             levenshtein_ratio = Levenshtein.ratio(translation_unit[1].text, segment_query)
