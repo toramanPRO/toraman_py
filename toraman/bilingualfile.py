@@ -315,8 +315,7 @@ class BilingualFile:
                                           encoding='UTF-8',
                                           xml_declaration=True)
 
-    def update_segment(self, segment_status, segment_target, paragraph_no, segment_no, author_id):
-
+    def update_segment(self, segment_status, segment_target, paragraph_no, segment_no, author_id, auto_propagation=True):
         assert type(segment_target) == etree._Element or type(segment_target) == str
 
         xml_segment = self.xml_root[0][paragraph_no - 1].find('toraman:segment[@no="{0}"]'.format(segment_no),
@@ -324,24 +323,35 @@ class BilingualFile:
         sub_p_id = xml_segment.getparent().findall('toraman:segment', self.t_nsmap).index(xml_segment)
         segment = self.paragraphs[paragraph_no - 1][sub_p_id]
 
-        xml_segment[1].text = segment_status
-        xml_segment[2] = etree.Element('{{{0}}}target'.format(self.t_nsmap['toraman']))
+        segments_list = [(xml_segment, sub_p_id, segment)]
+        if segment_status == 'Translated' and auto_propagation:
+            for paragraph in self.xml_root[0]:
+                for xml_segment in paragraph.findall('toraman:segment', self.t_nsmap):
+                    if etree.tostring(segments_list[0][0][0]) == etree.tostring(xml_segment[0]):
+                        sub_p_id = xml_segment.getparent().findall('toraman:segment', self.t_nsmap).index(xml_segment)
+                        segment = self.paragraphs[self.xml_root[0].index(paragraph)][sub_p_id]
+                        if segment[-1] != segments_list[0][2][-1]:
+                            segments_list.append((xml_segment, sub_p_id, segment))
 
-        if type(segment_target) == str:
-            xml_segment[2].append(etree.Element('{{{0}}}text'.format(self.t_nsmap['toraman'])))
-            xml_segment[2][0].text = segment_target
-        else:
-            for sub_elem in segment_target:
-                xml_segment[2].append(sub_elem)
+        for xml_segment, sub_p_id, segment in segments_list:
+            xml_segment[1].text = segment_status
+            xml_segment[2] = etree.Element('{{{0}}}target'.format(self.t_nsmap['toraman']))
 
-        segment[1] = xml_segment[1]
-        segment[2] = xml_segment[2]
+            if type(segment_target) == str:
+                xml_segment[2].append(etree.Element('{{{0}}}text'.format(self.t_nsmap['toraman'])))
+                xml_segment[2][0].text = segment_target
+            else:
+                for sub_elem in segment_target:
+                    xml_segment[2].append(sub_elem)
 
-        if 'creationdate' in xml_segment.attrib:
-            xml_segment.attrib['changedate'] = get_current_time_in_utc()
-            xml_segment.attrib['changeid'] = author_id
-        else:
-            xml_segment.attrib['creationdate'] = get_current_time_in_utc()
-            xml_segment.attrib['creationid'] = author_id
+            segment[1] = xml_segment[1]
+            segment[2] = xml_segment[2]
 
-        self.paragraphs[paragraph_no - 1][sub_p_id] = segment
+            if 'creationdate' in xml_segment.attrib:
+                xml_segment.attrib['changedate'] = get_current_time_in_utc()
+                xml_segment.attrib['changeid'] = author_id
+            else:
+                xml_segment.attrib['creationdate'] = get_current_time_in_utc()
+                xml_segment.attrib['creationid'] = author_id
+
+            self.paragraphs[paragraph_no - 1][sub_p_id] = segment
