@@ -231,7 +231,7 @@ class BilingualFile:
                         elif active_ftags:
                             final_paragraph.append(etree.Element('{{{0}}}span'.format(self.nsmap['text'])))
                             final_paragraph[-1].attrib['{{{0}}}style-name'.format(self.nsmap['text'])] = self.tags[int(active_ftags[0])-1]
-                        
+
                     elif child.tag == '{{{0}}}image'.format(self.nsmap['toraman']):
                         if len(active_ftags) > 1 and active_links:
                             final_paragraph[-1][-1][-1].append(etree.fromstring(self.images[int(child.attrib['no'])-1]))
@@ -354,6 +354,7 @@ class BilingualFile:
         segment = self.paragraphs[paragraph_no - 1][sub_p_id]
 
         segments_list = [(xml_segment, sub_p_id, segment)]
+        segment_no_list = []
         if segment_status == 'Translated' and auto_propagation:
             for paragraph in self.xml_root[0]:
                 for xml_segment in paragraph.findall('toraman:segment', self.t_nsmap):
@@ -362,6 +363,7 @@ class BilingualFile:
                         segment = self.paragraphs[self.xml_root[0].index(paragraph)][sub_p_id]
                         if segment[-1] != segments_list[0][2][-1]:
                             segments_list.append((xml_segment, sub_p_id, segment))
+                            segment_no_list.append(segment[-1])
 
         for xml_segment, sub_p_id, segment in segments_list:
             xml_segment[1].text = segment_status
@@ -372,7 +374,7 @@ class BilingualFile:
                 xml_segment[2][0].text = segment_target
             else:
                 for sub_elem in segment_target:
-                    xml_segment[2].append(sub_elem)
+                    xml_segment[2].append(sub_elem.__deepcopy__(True))
 
             segment[1] = xml_segment[1]
             segment[2] = xml_segment[2]
@@ -385,3 +387,5 @@ class BilingualFile:
                 xml_segment.attrib['creationid'] = author_id
 
             self.paragraphs[paragraph_no - 1][sub_p_id] = segment
+
+        return segment_no_list
