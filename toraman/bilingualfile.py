@@ -172,7 +172,16 @@ class BilingualFile:
                     if child.tag == '{{{0}}}text'.format(self.nsmap['toraman']):
                         if child.text is None:
                             continue
-                        if active_links and active_ftags:
+                        if len(active_ftags) > 1 and active_links:
+                            if len(final_paragraph[-1][-1][-1]) == 0:
+                                if final_paragraph[-1][-1][-1].text is None:
+                                    final_paragraph[-1][-1][-1].text = ''
+                                final_paragraph[-1][-1][-1].text += child.text
+                            else:
+                                if final_paragraph[-1][-1][-1][-1].tail is None:
+                                    final_paragraph[-1][-1][-1][-1].tail = ''
+                                final_paragraph[-1][-1][-1][-1].tail += child.text
+                        elif (active_links and active_ftags) or len(active_ftags) > 1:
                             if len(final_paragraph[-1][-1]) == 0:
                                 if final_paragraph[-1][-1].text is None:
                                     final_paragraph[-1][-1].text = ''
@@ -196,13 +205,26 @@ class BilingualFile:
                     elif child.tag == '{{{0}}}tag'.format(self.nsmap['toraman']):
                         if child.attrib['type'] == 'beginning':
                             if child.attrib['no'] not in active_ftags:
-                                active_ftags.append(child.attrib['no'])
+                                active_ftags.insert(0, child.attrib['no'])
 
                         else:
                             if child.attrib['no'] in active_ftags:
                                 active_ftags.remove(child.attrib['no'])
 
-                        if active_ftags and active_links:
+                            if active_ftags or active_links:
+                                last_span = final_paragraph[-1][-1]
+
+                            else:
+                                last_span = final_paragraph[-1]
+
+                            if len(last_span) == 0 and (last_span.text is '' or last_span.text is None):
+                                last_span.getparent().remove(last_span)
+
+                        if len(active_ftags) > 1 and active_links:
+                            final_paragraph[-1][-1].append(etree.Element('{{{0}}}span'.format(self.nsmap['text'])))
+                            final_paragraph[-1][-1][-1].attrib['{{{0}}}style-name'.format(self.nsmap['text'])] = self.tags[int(active_ftags[0])-1]
+
+                        elif (active_ftags and active_links) or len(active_ftags) > 1:
                             final_paragraph[-1].append(etree.Element('{{{0}}}span'.format(self.nsmap['text'])))
                             final_paragraph[-1][-1].attrib['{{{0}}}style-name'.format(self.nsmap['text'])] = self.tags[int(active_ftags[0])-1]
 
@@ -211,7 +233,9 @@ class BilingualFile:
                             final_paragraph[-1].attrib['{{{0}}}style-name'.format(self.nsmap['text'])] = self.tags[int(active_ftags[0])-1]
 
                     elif child.tag == '{{{0}}}image'.format(self.nsmap['toraman']):
-                        if active_ftags and active_links:
+                        if len(active_ftags) > 1 and active_links:
+                            final_paragraph[-1][-1][-1].append(etree.fromstring(self.images[int(child.attrib['no'])-1]))
+                        elif (active_ftags and active_links) or len(active_ftags) > 1:
                             final_paragraph[-1][-1].append(etree.fromstring(self.images[int(child.attrib['no'])-1]))
                         elif active_ftags or active_links:
                             final_paragraph[-1].append(etree.fromstring(self.images[int(child.attrib['no'])-1]))
@@ -233,7 +257,9 @@ class BilingualFile:
                                 final_paragraph[-1][-1].attrib['{{{0}}}style-name'.format(self.nsmap['text'])] = self.tags[int(active_ftags[0])-1]
 
                     elif child.tag == '{{{0}}}br'.format(self.nsmap['toraman']):
-                        if active_ftags and active_links:
+                        if len(active_ftags) > 1 and active_links:
+                            final_paragraph[-1][-1][-1].append(etree.Element('{{{0}}}line-break'.format(self.nsmap['text'])))
+                        elif (active_ftags and active_links) or len(active_ftags) > 1:
                             final_paragraph[-1][-1].append(etree.Element('{{{0}}}line-break'.format(self.nsmap['text'])))
                         elif active_ftags or active_links:
                             final_paragraph[-1].append(etree.Element('{{{0}}}line-break'.format(self.nsmap['text'])))
@@ -241,7 +267,9 @@ class BilingualFile:
                             final_paragraph.append(etree.Element('{{{0}}}line-break'.format(self.nsmap['text'])))
 
                     elif child.tag == '{{{0}}}tab'.format(self.nsmap['toraman']):
-                        if active_ftags and active_links:
+                        if len(active_ftags) > 1 and active_links:
+                            final_paragraph[-1][-1][-1].append(etree.Element('{{{0}}}tab'.format(self.nsmap['text'])))
+                        elif (active_ftags and active_links) or len(active_ftags) > 1:
                             final_paragraph[-1][-1].append(etree.Element('{{{0}}}tab'.format(self.nsmap['text'])))
                         elif active_ftags or active_links:
                             final_paragraph[-1].append(etree.Element('{{{0}}}tab'.format(self.nsmap['text'])))
@@ -249,7 +277,9 @@ class BilingualFile:
                             final_paragraph.append(etree.Element('{{{0}}}tab'.format(self.nsmap['text'])))
 
                     else:
-                        if active_ftags and active_links:
+                        if len(active_ftags) > 1 and active_links:
+                            final_paragraph[-1][-1][-1].append(etree.fromstring(self.miscellaneous_tags[int(child.attrib['no'])-1]))
+                        elif (active_ftags and active_links) or len(active_ftags) > 1:
                             final_paragraph[-1][-1].append(etree.fromstring(self.miscellaneous_tags[int(child.attrib['no'])-1]))
                         elif active_ftags or active_links:
                             final_paragraph[-1].append(etree.fromstring(self.miscellaneous_tags[int(child.attrib['no'])-1]))
@@ -315,8 +345,7 @@ class BilingualFile:
                                           encoding='UTF-8',
                                           xml_declaration=True)
 
-    def update_segment(self, segment_status, segment_target, paragraph_no, segment_no, author_id):
-
+    def update_segment(self, segment_status, segment_target, paragraph_no, segment_no, author_id, auto_propagation=True):
         assert type(segment_target) == etree._Element or type(segment_target) == str
 
         xml_segment = self.xml_root[0][paragraph_no - 1].find('toraman:segment[@no="{0}"]'.format(segment_no),
@@ -324,24 +353,39 @@ class BilingualFile:
         sub_p_id = xml_segment.getparent().findall('toraman:segment', self.t_nsmap).index(xml_segment)
         segment = self.paragraphs[paragraph_no - 1][sub_p_id]
 
-        xml_segment[1].text = segment_status
-        xml_segment[2] = etree.Element('{{{0}}}target'.format(self.t_nsmap['toraman']))
+        segments_list = [(xml_segment, sub_p_id, segment)]
+        segment_no_list = []
+        if segment_status == 'Translated' and auto_propagation:
+            for paragraph in self.xml_root[0]:
+                for xml_segment in paragraph.findall('toraman:segment', self.t_nsmap):
+                    if etree.tostring(segments_list[0][0][0]) == etree.tostring(xml_segment[0]):
+                        sub_p_id = xml_segment.getparent().findall('toraman:segment', self.t_nsmap).index(xml_segment)
+                        segment = self.paragraphs[self.xml_root[0].index(paragraph)][sub_p_id]
+                        if segment[-1] != segments_list[0][2][-1]:
+                            segments_list.append((xml_segment, sub_p_id, segment))
+                            segment_no_list.append(segment[-1])
 
-        if type(segment_target) == str:
-            xml_segment[2].append(etree.Element('{{{0}}}text'.format(self.t_nsmap['toraman'])))
-            xml_segment[2][0].text = segment_target
-        else:
-            for sub_elem in segment_target:
-                xml_segment[2].append(sub_elem)
+        for xml_segment, sub_p_id, segment in segments_list:
+            xml_segment[1].text = segment_status
+            xml_segment[2] = etree.Element('{{{0}}}target'.format(self.t_nsmap['toraman']))
 
-        segment[1] = xml_segment[1]
-        segment[2] = xml_segment[2]
+            if type(segment_target) == str:
+                xml_segment[2].append(etree.Element('{{{0}}}text'.format(self.t_nsmap['toraman'])))
+                xml_segment[2][0].text = segment_target
+            else:
+                for sub_elem in segment_target:
+                    xml_segment[2].append(sub_elem.__deepcopy__(True))
 
-        if 'creationdate' in xml_segment.attrib:
-            xml_segment.attrib['changedate'] = get_current_time_in_utc()
-            xml_segment.attrib['changeid'] = author_id
-        else:
-            xml_segment.attrib['creationdate'] = get_current_time_in_utc()
-            xml_segment.attrib['creationid'] = author_id
+            segment[1] = xml_segment[1]
+            segment[2] = xml_segment[2]
 
-        self.paragraphs[paragraph_no - 1][sub_p_id] = segment
+            if 'creationdate' in xml_segment.attrib:
+                xml_segment.attrib['changedate'] = get_current_time_in_utc()
+                xml_segment.attrib['changeid'] = author_id
+            else:
+                xml_segment.attrib['creationdate'] = get_current_time_in_utc()
+                xml_segment.attrib['creationid'] = author_id
+
+            self.paragraphs[paragraph_no - 1][sub_p_id] = segment
+
+        return segment_no_list

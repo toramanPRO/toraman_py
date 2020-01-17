@@ -187,15 +187,6 @@ class SourceFile:
                     paragraph_placeholder.getparent().replace(paragraph_placeholder, paragraph_element)
 
         elif file_path.lower().endswith('.odt'):
-            sf = zipfile.ZipFile(file_path)
-            for zip_child in sf.namelist():
-                if ('content.xml' in zip_child
-                or 'styles.xml' in zip_child):
-                    self.master_files.append([zip_child, sf.open(zip_child)])
-            sf.close()
-
-            assert self.master_files
-            self.file_type = 'odt'
 
             def extract_span(child_element, parent_element, paragraph_continues):
                 run_properties = child_element.attrib['{{{0}}}style-name'.format(self.nsmap['text'])]
@@ -215,6 +206,7 @@ class SourceFile:
                     self.paragraphs[-1][-1][0].append(etree.Element('{{{0}}}text'.format(nsmap['toraman'])))
                     self.paragraphs[-1][-1][0][-1].text = child_element.text
 
+                active_ftags = False
                 for span_child in child_element:
                     if span_child.tag == '{{{0}}}frame'.format(self.nsmap['draw']):
                         image_copy = child_element.__deepcopy__(True)
@@ -235,6 +227,11 @@ class SourceFile:
                         else:
                             self.paragraphs[-1][-1][0][-1].text += ' '
 
+                    elif span_child.tag == '{{{0}}}span'.format(self.nsmap['text']):
+                        active_ftags = True
+                        self.paragraphs[-1][-1][1] = (run_properties, 'Beginning')
+                        extract_span(span_child, child_element, paragraph_continues)
+
                     if span_child.tail is not None:
                         if (len(self.paragraphs[-1][-1][0]) == 0
                         or self.paragraphs[-1][-1][0][-1].tag != '{{{0}}}text'.format(nsmap['toraman'])):
@@ -242,6 +239,21 @@ class SourceFile:
                             self.paragraphs[-1][-1][0][-1].text = span_child.tail
                         else:
                             self.paragraphs[-1][-1][0][-1].text += span_child.tail
+                else:
+                    if active_ftags:
+                        self.paragraphs[-1].append((etree.Element('{{{0}}}run'.format(nsmap['toraman'])), (run_properties, 'End')))
+                        active_ftags = False
+
+            sf = zipfile.ZipFile(file_path)
+            for zip_child in sf.namelist():
+                if ('content.xml' in zip_child
+                or 'styles.xml' in zip_child):
+                    self.master_files.append([zip_child, sf.open(zip_child)])
+            sf.close()
+
+            assert self.master_files
+            self.file_type = 'odt'
+
 
             for master_file in self.master_files:
                 master_file[1] = etree.parse(master_file[1])
@@ -376,10 +388,7 @@ class SourceFile:
 
                             for a_element_child in paragraph_child:
                                 if a_element_child.tag == '{{{0}}}span'.format(self.nsmap['text']):
-                                    a_element_run_properties = a_element_child.attrib['{{{0}}}style-name'.format(self.nsmap['text'])]
-                                    self.paragraphs[-1].append([etree.Element('{{{0}}}run'.format(nsmap['toraman'])), a_element_run_properties])
-                                    self.paragraphs[-1][-1][0].append(etree.Element('{{{0}}}text'.format(nsmap['toraman'])))
-                                    self.paragraphs[-1][-1][0][-1].text = a_element_child.text
+                                    extract_span(a_element_child, paragraph_child, paragraph_continues)
 
                                 if a_element_child.tail is not None:
                                     self.paragraphs[-1].append([etree.Element('{{{0}}}run'.format(nsmap['toraman']))])
@@ -427,6 +436,12 @@ class SourceFile:
                                     self.paragraphs[-1][-1][0][-1].text = ' '
 
                                 paragraph_element.remove(paragraph_child)
+
+                        elif paragraph_child.tag == '{{{0}}}custom-shape'.format(self.nsmap['draw']):
+                            for cs_paragraph in paragraph_child.findall('{{{0}}}p'.format(self.nsmap['text'])):
+                                for cs_child in cs_paragraph:
+                                    if cs_child.tag == '{{{0}}}span'.format(self.nsmap['text']):
+                                        extract_span(cs_child, cs_paragraph, paragraph_continues)
 
                         elif paragraph_child.tag == '{{{0}}}paragraph'.format(nsmap['toraman']):
                             pass
@@ -478,22 +493,29 @@ class SourceFile:
                                                 nsmap=self.t_nsmap)
             for run in self.paragraphs[paragraph_index]:
                 if len(run) == 2 and run[1] is not None:
+                    segment_type = None
+                    if type(run[1]) == tuple and len(run[1]) == 2:
+                        run = list(run)
+                        segment_type = run[1][1]
+                        run[1] = run[1][0]
                     if run[1] not in self.tags:
                         self.tags.append(run[1])
                     toraman_tag_template = etree.tostring(etree.Element('{{{0}}}tag'.format(self.t_nsmap['toraman']),
                                                                         no=str(self.tags.index(run[1])+1),
                                                                         nsmap=self.t_nsmap))
 
-                    toraman_tag = etree.fromstring(toraman_tag_template)
-                    toraman_tag.attrib['type'] = 'beginning'
-                    organised_paragraph.append(toraman_tag)
+                    if segment_type is None or segment_type is 'Beginning':
+                        toraman_tag = etree.fromstring(toraman_tag_template)
+                        toraman_tag.attrib['type'] = 'beginning'
+                        organised_paragraph.append(toraman_tag)
 
                     for run_element in run[0]:
                         organised_paragraph.append(run_element)
 
-                    toraman_tag = etree.fromstring(toraman_tag_template)
-                    toraman_tag.attrib['type'] = 'end'
-                    organised_paragraph.append(toraman_tag)
+                    if segment_type is None or segment_type is 'End':
+                        toraman_tag = etree.fromstring(toraman_tag_template)
+                        toraman_tag.attrib['type'] = 'end'
+                        organised_paragraph.append(toraman_tag)
 
                 elif len(run) == 3:
                     if run[1] is not None:
