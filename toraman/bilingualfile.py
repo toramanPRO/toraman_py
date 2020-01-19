@@ -161,7 +161,7 @@ class BilingualFile:
                                                 etree.fromstring(etree.tostring(final_run)))
                                 current_elem_i += 1
 
-        elif self.file_type == 'odt':
+        elif self.file_type == 'odt' or self.file_type == 'ods':
 
             for target_paragraph in target_paragraphs:
                 active_ftags = []
@@ -288,6 +288,17 @@ class BilingualFile:
 
 
                 final_paragraphs.append(final_paragraph)
+
+            if self.file_type == 'ods':
+                internal_file = self.xml_root[-1][0][0]
+                for sheet_element in internal_file.xpath('office:body/office:spreadsheet/table:table', namespaces=self.nsmap):
+                    if '{{{0}}}name'.format(self.nsmap['table']) in sheet_element.attrib:
+                        sheet_p = sheet_element.attrib['{{{0}}}name'.format(self.nsmap['table'])]
+                        sheet_p = self.paragraphs[int(sheet_p) - 1][0]
+                        if len(sheet_p[2]) > 0:
+                            sheet_element.attrib['{{{0}}}name'.format(self.nsmap['table'])] = sheet_p[2][0].text
+                        else:
+                            sheet_element.attrib['{{{0}}}name'.format(self.nsmap['table'])] = sheet_p[0][0].text
 
             for internal_file in self.xml_root[-1]:
                 internal_file = internal_file[0]

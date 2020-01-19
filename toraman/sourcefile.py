@@ -207,6 +207,34 @@ class SourceFile:
                 for paragraph_element in master_file[1].xpath('office:body/office:text/text:p|office:body/office:text/table:table//text:p|office:master-styles/style:master-page/style:header/text:p|office:master-styles/style:master-page/style:footer/text:p', namespaces=self.nsmap):
                     extract_od(self, paragraph_element, paragraph_element.getparent())
 
+        elif file_path.lower().endswith('.ods'):
+
+            from .sfhelper import extract_od
+
+            sf = zipfile.ZipFile(file_path)
+            self.master_files.append(['content.xml', sf.open('content.xml')])
+            sf.close()
+
+            assert self.master_files
+            self.file_type = 'ods'
+
+            for master_file in self.master_files:
+                master_file[1] = etree.parse(master_file[1])
+
+                master_file[1] = master_file[1].getroot()
+                self.nsmap = master_file[1].nsmap
+
+                for sheet_element in master_file[1].xpath('office:body/office:spreadsheet/table:table', namespaces=self.nsmap):
+                    if '{{{0}}}name'.format(self.nsmap['table']) in sheet_element.attrib:
+                        self.paragraphs.append([[etree.Element('{{{0}}}run'.format(nsmap['toraman']))]])
+                        self.paragraphs[-1][-1][0].append(etree.Element('{{{0}}}text'.format(nsmap['toraman'])))
+                        self.paragraphs[-1][-1][0][-1].text = sheet_element.attrib['{{{0}}}name'.format(self.nsmap['table'])]
+
+                        sheet_element.attrib['{{{0}}}name'.format(self.nsmap['table'])] = str(len(self.paragraphs))
+                    
+                    for paragraph_element in sheet_element.xpath('table:table-row/table:table-cell/text:p|table:shapes/draw:frame/draw:text-box/text:p', namespaces=self.nsmap):
+                        extract_od(self, paragraph_element, paragraph_element.getparent())
+
         # Filetype-specific processing ends here.
 
         toraman_link_template = etree.Element('{{{0}}}link'.format(self.t_nsmap['toraman']))
