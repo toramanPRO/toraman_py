@@ -52,6 +52,8 @@ class BilingualFile:
         from hashlib import sha256
         import zipfile
 
+        from .utils import file_clean_up
+
         sha256_hash = sha256()
         buffer_size = 5 * 1048576  # 5 MB
         sf = open(source_file_path, 'rb')
@@ -350,6 +352,8 @@ class BilingualFile:
         with zipfile.ZipFile(os.path.join(output_directory, self.file_name), 'w') as target_zf:
             for name in to_zip:
                 target_zf.write(name, name[len(os.path.join(output_directory, '.temp')):])
+
+        file_clean_up(os.path.join(output_directory, '.temp'))
 
     def save(self, output_directory):
         self.xml_root.getroottree().write(os.path.join(output_directory, self.file_name) + '.xml',
