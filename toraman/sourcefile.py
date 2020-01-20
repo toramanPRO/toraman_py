@@ -193,6 +193,9 @@ class SourceFile:
             sf = zipfile.ZipFile(file_path)
             self.master_files.append(['styles.xml', sf.open('styles.xml')])
             self.master_files.append(['content.xml', sf.open('content.xml')])
+            for zip_child in sf.namelist():
+                if zip_child != 'content.xml' and zip_child.endswith('content.xml'):
+                    self.master_files.append([zip_child, sf.open(zip_child)])
             sf.close()
 
             assert self.master_files
@@ -204,7 +207,7 @@ class SourceFile:
                 master_file[1] = master_file[1].getroot()
                 self.nsmap = master_file[1].nsmap
 
-                for paragraph_element in master_file[1].xpath('office:body/office:text/text:p|office:body/office:text/table:table//text:p|office:master-styles/style:master-page/style:header/text:p|office:master-styles/style:master-page/style:footer/text:p', namespaces=self.nsmap):
+                for paragraph_element in master_file[1].xpath('office:body/office:text/text:p|office:body/office:text/table:table//text:p|office:body/office:text/draw:frame/draw:text-box/text:p|office:body/office:text/text:list/text:list-item/text:p|office:body/office:chart//text:p|office:master-styles/style:master-page/style:header/text:p|office:master-styles/style:master-page/style:footer/text:p', namespaces=self.nsmap):
                     extract_od(self, paragraph_element, paragraph_element.getparent())
 
         elif file_path.lower().endswith('.ods'):
