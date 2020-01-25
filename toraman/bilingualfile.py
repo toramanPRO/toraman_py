@@ -163,7 +163,7 @@ class BilingualFile:
                                                 etree.fromstring(etree.tostring(final_run)))
                                 current_elem_i += 1
 
-        elif self.file_type == 'odt' or self.file_type == 'ods':
+        elif self.file_type == 'odt' or self.file_type == 'ods' or self.file_type == 'odp':
 
             for target_paragraph in target_paragraphs:
                 active_ftags = []

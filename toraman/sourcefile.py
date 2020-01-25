@@ -256,6 +256,31 @@ class SourceFile:
                             else:
                                 cell_reference.text = cell_reference_text
 
+        elif file_path.lower().endswith('.odp'):
+
+            from .sfhelper import extract_od
+
+            sf = zipfile.ZipFile(file_path)
+            self.master_files.append(['content.xml', sf.open('content.xml')])
+            for zip_child in sf.namelist():
+                if zip_child != 'content.xml' and zip_child.endswith('content.xml'):
+                    self.master_files.append([zip_child, sf.open(zip_child)])
+            sf.close()
+
+            assert self.master_files
+            self.file_type = 'ods'
+            self.sheets = {}
+
+            for master_file in self.master_files:
+                master_file[1] = etree.parse(master_file[1])
+
+                master_file[1] = master_file[1].getroot()
+                self.nsmap = master_file[1].nsmap
+
+                for paragraph_element in master_file[1].xpath('office:body//text:p', namespaces=self.nsmap):
+                    paragraph_parent = paragraph_element.getparent()
+                    extract_od(self, paragraph_element, paragraph_parent)
+
         # Filetype-specific processing ends here.
 
         toraman_link_template = etree.Element('{{{0}}}link'.format(self.t_nsmap['toraman']))
