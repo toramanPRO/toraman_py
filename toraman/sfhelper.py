@@ -3,7 +3,7 @@ from lxml import etree
 from .utils import nsmap
 
 def extract_od(self, p_element, parent_element, paragraph_continues=False):
-    '''Extracts paragraph elements in .odt and .ods files.'''
+    '''Extracts paragraph elements in .odp, .ods and .odt files.'''
 
     span_properties = None
 
