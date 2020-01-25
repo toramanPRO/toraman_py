@@ -216,10 +216,14 @@ class SourceFile:
 
             sf = zipfile.ZipFile(file_path)
             self.master_files.append(['content.xml', sf.open('content.xml')])
+            for zip_child in sf.namelist():
+                if zip_child != 'content.xml' and zip_child.endswith('content.xml'):
+                    self.master_files.append([zip_child, sf.open(zip_child)])
             sf.close()
 
             assert self.master_files
             self.file_type = 'ods'
+            self.sheets = {}
 
             for master_file in self.master_files:
                 master_file[1] = etree.parse(master_file[1])
@@ -227,16 +231,30 @@ class SourceFile:
                 master_file[1] = master_file[1].getroot()
                 self.nsmap = master_file[1].nsmap
 
-                for sheet_element in master_file[1].xpath('office:body/office:spreadsheet/table:table', namespaces=self.nsmap):
-                    if '{{{0}}}name'.format(self.nsmap['table']) in sheet_element.attrib:
-                        self.paragraphs.append([[etree.Element('{{{0}}}run'.format(nsmap['toraman']))]])
-                        self.paragraphs[-1][-1][0].append(etree.Element('{{{0}}}text'.format(nsmap['toraman'])))
-                        self.paragraphs[-1][-1][0][-1].text = sheet_element.attrib['{{{0}}}name'.format(self.nsmap['table'])]
+                if master_file[0] == 'content.xml':
+                    for sheet_element in master_file[1].xpath('office:body/office:spreadsheet/table:table', namespaces=self.nsmap):
+                        if '{{{0}}}name'.format(self.nsmap['table']) in sheet_element.attrib:
+                            self.paragraphs.append([[etree.Element('{{{0}}}run'.format(nsmap['toraman']))]])
+                            self.paragraphs[-1][-1][0].append(etree.Element('{{{0}}}text'.format(nsmap['toraman'])))
+                            self.paragraphs[-1][-1][0][-1].text = sheet_element.attrib['{{{0}}}name'.format(self.nsmap['table'])]
+                            self.sheets[sheet_element.attrib['{{{0}}}name'.format(self.nsmap['table'])]] = str(len(self.paragraphs))
 
-                        sheet_element.attrib['{{{0}}}name'.format(self.nsmap['table'])] = str(len(self.paragraphs))
-                    
-                    for paragraph_element in sheet_element.xpath('table:table-row/table:table-cell/text:p|table:shapes/draw:frame/draw:text-box/text:p', namespaces=self.nsmap):
-                        extract_od(self, paragraph_element, paragraph_element.getparent())
+                            sheet_element.attrib['{{{0}}}name'.format(self.nsmap['table'])] = str(len(self.paragraphs))
+
+                        for paragraph_element in sheet_element.xpath('table:table-row/table:table-cell/text:p|table:shapes/draw:frame/draw:text-box/text:p', namespaces=self.nsmap):
+                            extract_od(self, paragraph_element, paragraph_element.getparent())
+                else:
+                    for paragraph_element in master_file[1].xpath('office:body/office:chart//text:p', namespaces=self.nsmap):
+                        paragraph_parent = paragraph_element.getparent()
+                        extract_od(self, paragraph_element, paragraph_parent)
+
+                        for cell_reference in paragraph_parent.xpath('draw:g/svg:desc', namespaces=self.nsmap):
+                            cell_reference_text = cell_reference.text
+                            for sheet_reference in regex.findall(':?([^:]+?)\.', cell_reference_text):
+                                if sheet_reference in self.sheets:
+                                    cell_reference_text = cell_reference_text.replace(sheet_reference, '{{{0}}}'.format(self.sheets[sheet_reference]), 1)
+                            else:
+                                cell_reference.text = cell_reference_text
 
         # Filetype-specific processing ends here.
 

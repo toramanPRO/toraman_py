@@ -1,4 +1,4 @@
-import os
+import os, regex
 
 from lxml import etree
 
@@ -292,14 +292,17 @@ class BilingualFile:
                 final_paragraphs.append(final_paragraph)
 
             if self.file_type == 'ods':
+                self.sheets = {}
                 internal_file = self.xml_root[-1][0][0]
                 for sheet_element in internal_file.xpath('office:body/office:spreadsheet/table:table', namespaces=self.nsmap):
                     if '{{{0}}}name'.format(self.nsmap['table']) in sheet_element.attrib:
                         sheet_p = sheet_element.attrib['{{{0}}}name'.format(self.nsmap['table'])]
                         sheet_p = self.paragraphs[int(sheet_p) - 1][0]
                         if len(sheet_p[2]) > 0:
+                            self.sheets[sheet_element.attrib['{{{0}}}name'.format(self.nsmap['table'])]] = sheet_p[2][0].text
                             sheet_element.attrib['{{{0}}}name'.format(self.nsmap['table'])] = sheet_p[2][0].text
                         else:
+                            self.sheets[sheet_element.attrib['{{{0}}}name'.format(self.nsmap['table'])]] = sheet_p[0][0].text
                             sheet_element.attrib['{{{0}}}name'.format(self.nsmap['table'])] = sheet_p[0][0].text
 
             for internal_file in self.xml_root[-1]:
@@ -308,6 +311,15 @@ class BilingualFile:
                     paragraph_placeholder_parent = paragraph_placeholder.getparent()
                     placeholder_i = paragraph_placeholder_parent.index(paragraph_placeholder)
                     child_i = placeholder_i
+
+                    if self.file_type == 'ods':
+                        for cell_reference in paragraph_placeholder_parent.getparent().xpath('draw:g/svg:desc', namespaces=self.nsmap):
+                            cell_reference_text = cell_reference.text
+                            for sheet_reference in regex.findall('{([0-9]+)}', cell_reference_text):
+                                if sheet_reference in self.sheets:
+                                    cell_reference_text = cell_reference_text.replace('{{{0}}}'.format(sheet_reference), '{0}'.format(self.sheets[sheet_reference]), 1)
+                            else:
+                                cell_reference.text = cell_reference_text
 
                     for final_paragraph_child in final_paragraphs[int(paragraph_placeholder.attrib['no'])-1]:
                         if type(final_paragraph_child) == str:
