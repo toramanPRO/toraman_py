@@ -445,12 +445,12 @@ class SourceFile:
                     if toraman_element.text is None:
                         continue
                     _text = toraman_element.text.split(placeholders[1])
-                    if _text[-1] is '':
-                        _text = _text[:-1]
                     for _text_i in range(len(_text)):
                         if _text_i != 0:
                             organised_paragraph[0].append(etree.Element('{{{0}}}source'.format(self.t_nsmap['toraman']),
                                                                         nsmap=self.t_nsmap))
+                            if _text[_text_i] is '':
+                                continue
                         organised_paragraph[0][-1].append(etree.Element('{{{0}}}text'.format(self.t_nsmap['toraman']),
                                                             nsmap=self.t_nsmap))
                         organised_paragraph[0][-1][-1].text = _text[_text_i]
@@ -462,6 +462,8 @@ class SourceFile:
                     organised_paragraph[0].append(etree.Element('{{{0}}}non-text-segment'.format(self.t_nsmap['toraman']),
                                                                 nsmap=self.t_nsmap))
                     organised_paragraph[0][-1].append(toraman_element)
+                    organised_paragraph[0].append(etree.Element('{{{0}}}source'.format(self.t_nsmap['toraman']),
+                                                nsmap=self.t_nsmap))
                 elif toraman_element.tag == '{{{0}}}br'.format(self.t_nsmap['toraman']):
                     if (len(organised_paragraph[0][-1]) == 0
                             or (len(organised_paragraph[0][-1]) == 1
@@ -470,14 +472,15 @@ class SourceFile:
                         organised_paragraph[0] = organised_paragraph[0][:-1]
                         organised_paragraph[0].append(etree.Element('{{{0}}}non-text-segment'.format(self.t_nsmap['toraman']),
                                                                     nsmap=self.t_nsmap))
+                        organised_paragraph[0][-1].append(toraman_element)
+                        organised_paragraph[0].append(etree.Element('{{{0}}}source'.format(self.t_nsmap['toraman']),
+                                                    nsmap=self.t_nsmap))
 
-                    organised_paragraph[0][-1].append(toraman_element)
-                    organised_paragraph[0].append(etree.Element('{{{0}}}source'.format(self.t_nsmap['toraman']),
-                                                        nsmap=self.t_nsmap))
+                    else:
+                        organised_paragraph[0][-1].append(toraman_element)
 
                 else:
                     organised_paragraph[0][-1].append(toraman_element)
-
             if (len(organised_paragraph[0][-1]) == 0
                     or (len(organised_paragraph[0][-1]) == 1
                     and organised_paragraph[0][-1][-1].tag == '{{{0}}}text'.format(self.t_nsmap['toraman'])
@@ -489,10 +492,41 @@ class SourceFile:
                     continue
                 if (organised_segment[0].tag == '{{{0}}}tag'.format(self.t_nsmap['toraman'])
                 and organised_segment[0].attrib['type'] == 'end'):
-                    organised_segment.remove(organised_segment[0])
+                    if (organised_segment.getprevious()
+                    and organised_segment.getprevious().xpath('toraman:tag[@type="beginning][@no="{0}"]'.format(organised_segment[0].attrib['no']))):
+                        organised_segment.getprevious().append(organised_segment[0])
+                    elif len(organised_segment) == 1:
+                        organised_segment.tag = '{{{0}}}non-text-segment'.format(self.t_nsmap['toraman'])
+                        continue
+                    else:
+                        _segment_i = organised_paragraph[0].index(organised_segment)
+                        if organised_paragraph[0][_segment_i-1].tag != '{{{0}}}non-text-segment'.format(self.t_nsmap['toraman']):
+                            organised_paragraph[0].insert(_segment_i,
+                                                        etree.Element('{{{0}}}non-text-segment'.format(self.t_nsmap['toraman']),
+                                                                    nsmap=self.t_nsmap))
+
+                        organised_paragraph[0][_segment_i].append(organised_segment[0])
                 if (organised_segment[-1].tag == '{{{0}}}tag'.format(self.t_nsmap['toraman'])
                 and organised_segment[-1].attrib['type'] == 'beginning'):
-                    organised_segment.remove(organised_segment[-1])
+                    if (organised_segment.getnext()
+                    and organised_segment.getnext().xpath('toraman:tag[@type="end"][@no="{0}"]'.format(organised_segment[0].attrib['no']), namespaces=self.t_nsmap)):
+                        organised_segment.getnext().append(organised_segment[0])
+                    elif len(organised_segment) == 1:
+                        organised_segment.tag = '{{{0}}}non-text-segment'.format(self.t_nsmap['toraman'])
+                        continue
+                    else:
+                        _segment_i = organised_paragraph[0].index(organised_segment)
+                        if organised_paragraph[0][_segment_i+1].tag != '{{{0}}}non-text-segment'.format(self.t_nsmap['toraman']):
+                            _segment_i += 1
+                            organised_paragraph[0].insert(_segment_i,
+                                                        etree.Element('{{{0}}}non-text-segment'.format(self.t_nsmap['toraman']),
+                                                                    nsmap=self.t_nsmap))
+
+                        organised_paragraph[0][_segment_i].append(organised_segment[0])
+
+                if len(organised_segment) == 0:
+                    organised_paragraph[0].remove(organised_segment)
+                    continue
 
                 active_ftags = []
                 no_text_yet = True
@@ -501,14 +535,38 @@ class SourceFile:
                 for organised_segment_child in organised_segment:
                     if organised_segment_child.tag == '{{{0}}}tag'.format(self.t_nsmap['toraman']):
                         if organised_segment_child.attrib['type'] == 'beginning':
-                            active_ftags.append(organised_segment_child.attrib['no'])
+                            if (organised_segment.index(organised_segment_child) == 0
+                            and not organised_segment.xpath('toraman:tag[@type="end"][@no="{0}"]'.format(organised_segment_child.attrib['no']), namespaces=self.t_nsmap)):
+                                if (organised_segment.getprevious()
+                                and organised_segment.getprevious().tag == '{{{0}}}non-text-segment'.format(self.t_nsmap['toraman'])):
+                                    organised_segment.getprevious().append(organised_segment)
+                                else:
+                                    _segment_i = organised_paragraph[0].index(organised_segment)
+                                    organised_paragraph[0].insert(_segment_i,
+                                                                etree.Element('{{{0}}}non-text-segment'.format(self.t_nsmap['toraman']),
+                                                                            nsmap=self.t_nsmap))
+                                    organised_paragraph[0][_segment_i].append(organised_segment_child)
+                            else:
+                                active_ftags.append(organised_segment_child.attrib['no'])
                         elif organised_segment_child.attrib['type'] == 'end':
                             if organised_segment_child.attrib['no'] in active_ftags:
                                 active_ftags.remove(organised_segment_child.attrib['no'])
                             else:
-                                _tag = organised_segment_child.__deepcopy__(True)
-                                _tag.attrib['type'] = 'beginning'
-                                organised_segment.insert(0, _tag)
+                                if organised_segment.index(organised_segment_child) == len(organised_segment)-1:
+                                    if (organised_segment.getnext() 
+                                    and organised_segment.getnext().tag == '{{{0}}}non-text-segment'.format(self.t_nsmap['toraman'])):
+                                        organised_segment.getnext().append(organised_segment_child)
+                                    else:
+                                        _segment_i = organised_paragraph[0].index(organised_segment) + 1
+                                        organised_paragraph[0].insert(_segment_i,
+                                                                    etree.Element('{{{0}}}non-text-segment'.format(self.t_nsmap['toraman']),
+                                                                                nsmap=self.t_nsmap))
+                                        organised_paragraph[0][_segment_i].append(organised_segment_child)
+
+                                else:
+                                    _tag = organised_segment_child.__deepcopy__(True)
+                                    _tag.attrib['type'] = 'beginning'
+                                    organised_segment.insert(0, _tag)
 
                     if no_text_yet:
                         if organised_segment_child.tag == '{{{0}}}text'.format(self.t_nsmap['toraman']):
