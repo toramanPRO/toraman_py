@@ -382,7 +382,7 @@ class BilingualFile:
             else:
                 current_segment_no += 1
                 assert current_segment_no == segment_no, 'Segments must be consecutive.'
-            print('./toraman:segment[@no="{0}"]'.format(segment_no))
+
             segment = self.xml_root[0].find('.//toraman:segment[@no="{0}"]'.format(segment_no), self.nsmap)
             if paragraph is None:
                 paragraph = segment.getparent()
