@@ -367,6 +367,47 @@ class BilingualFile:
 
         file_clean_up(os.path.join(output_directory, '.temp'))
 
+    def merge_segments(self, list_of_segments):
+        '''Merges two segments of the same paragraph.'''
+
+        assert type(list_of_segments) == list, 'The parameter \'list_of_segments\' must be a list.'
+
+        list_of_segments = sorted([int(segment_no) for segment_no in set(list_of_segments)])
+
+        current_segment_no = 0
+        paragraph = None
+        for segment_no in list_of_segments:
+            if current_segment_no == 0:
+                current_segment_no = segment_no
+            else:
+                current_segment_no += 1
+                assert current_segment_no == segment_no, 'Segments must be consecutive.'
+            print('./toraman:segment[@no="{0}"]'.format(segment_no))
+            segment = self.xml_root[0].find('.//toraman:segment[@no="{0}"]'.format(segment_no), self.nsmap)
+            if paragraph is None:
+                paragraph = segment.getparent()
+            else:
+                assert segment.getparent() == paragraph, 'Segments are of different paragraphs.'
+
+            list_of_segments[list_of_segments.index(segment_no)] = segment
+
+        segment_range = paragraph[paragraph.index(list_of_segments[0]):paragraph.index(list_of_segments[-1])+1]
+
+        segment_range[0][1].text = 'Draft'
+        for segment in segment_range[1:]:
+            if segment.tag == '{{{0}}}non-text-segment'.format(self.nsmap['toraman']):
+                for segment_child in segment:
+                    segment_range[0][0].append(segment_child.__deepcopy__(True))
+                    segment_range[0][2].append(segment_child.__deepcopy__(True))
+                else:
+                    paragraph.remove(segment)
+            else:
+                for segment_child in segment[0]:
+                    segment_range[0][0].append(segment_child)
+                for segment_Child in segment[2]:
+                    segment_range[0][2].append(segment_child)
+                paragraph.remove(segment)
+
     def save(self, output_directory):
         self.xml_root.getroottree().write(os.path.join(output_directory, self.file_name) + '.xml',
                                           encoding='UTF-8',
