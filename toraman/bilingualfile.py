@@ -404,7 +404,7 @@ class BilingualFile:
             else:
                 for segment_child in segment[0]:
                     segment_range[0][0].append(segment_child)
-                for segment_Child in segment[2]:
+                for segment_child in segment[2]:
                     segment_range[0][2].append(segment_child)
                 paragraph.remove(segment)
 
