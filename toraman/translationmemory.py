@@ -38,7 +38,7 @@ class TranslationMemory():
                                            xml_declaration=True)
 
     def lookup(self, source_segment, match=0.7, convert_segment=True):
-        _segment_hits = []
+        segment_hits = []
 
         if convert_segment:
             segment_query = segment_to_tm_segment(source_segment)
@@ -48,13 +48,25 @@ class TranslationMemory():
         for translation_unit in self.translation_memory[1]:
             levenshtein_ratio = Levenshtein.ratio(translation_unit[1].text, segment_query)
             if levenshtein_ratio >= match:
-                _segment_hits.append((levenshtein_ratio,
+                segment_hits.append((levenshtein_ratio,
                                     translation_unit[0].__deepcopy__(True),
                                     translation_unit[2].__deepcopy__(True)))
+        if segment_hits:
+            sorted_segment_hits = [segment_hits[0]]
+            for segment_hit in segment_hits[1:]:
+                for sorted_segment_hit in sorted_segment_hits:
+                    if segment_hit[0] > sorted_segment_hit[0]:
+                        sorted_segment_hits.insert(sorted_segment_hits.index(sorted_segment_hit), segment_hit)
+                        break
+                    elif segment_hit[0] == sorted_segment_hit[0]:
+                        sorted_segment_hits.insert(sorted_segment_hits.index(sorted_segment_hit)+1, segment_hit)
+                        break
+                    else:
+                        sorted_segment_hits.append(segment_hit)
+                        break
+            return sorted_segment_hits
         else:
-            _segment_hits.sort(reverse=True)
-
-        return _segment_hits
+            return ()
 
     def submit_segment(self, source_segment, target_segment, author_id):
         segment_query = segment_to_tm_segment(source_segment)
