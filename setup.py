@@ -10,7 +10,8 @@ setuptools.setup(
     version=__version__,
     author='Çağatay Onur Şengör',
     author_email='contact@csengor.com',
-    description='A computer assisted translation tool package',
+    description='A computer-assisted translation tool package',
+    keywords = ['CAT', 'computer-assisted translation', 'computer-aided translation', 'translation', 'free-to-use']
     long_description=long_description,
     long_description_content_type='text/markdown',
     url='https://github.com/csengor/toraman-py',
