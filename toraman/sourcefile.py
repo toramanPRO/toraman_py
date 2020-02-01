@@ -188,72 +188,18 @@ class SourceFile:
 
         elif file_path.lower().endswith('.odt'):
 
-            def extract_span(child_element, parent_element, paragraph_continues):
-                run_properties = child_element.attrib['{{{0}}}style-name'.format(self.nsmap['text'])]
-                if not paragraph_continues:
-                    self.paragraphs.append([[etree.Element('{{{0}}}run'.format(nsmap['toraman'])), run_properties]])
-
-                    parent_element.replace(child_element, etree.Element('{{{0}}}paragraph'.format(nsmap['toraman']),
-                                                                            no=str(len(self.paragraphs))))
-
-                    paragraph_continues = True
-                else:
-                    self.paragraphs[-1].append([etree.Element('{{{0}}}run'.format(nsmap['toraman'])), run_properties])
-
-                    parent_element.remove(child_element)
-
-                if child_element.text is not None:
-                    self.paragraphs[-1][-1][0].append(etree.Element('{{{0}}}text'.format(nsmap['toraman'])))
-                    self.paragraphs[-1][-1][0][-1].text = child_element.text
-
-                active_ftags = False
-                for span_child in child_element:
-                    if span_child.tag == '{{{0}}}frame'.format(self.nsmap['draw']):
-                        image_copy = child_element.__deepcopy__(True)
-                        image_copy.tail = None
-                        self.images.append(etree.tostring(image_copy))
-                        self.paragraphs[-1][-1][0].append(etree.Element('{{{0}}}image'.format(self.t_nsmap['toraman']),
-                                                        no=str(len(self.images)),
-                                                        nsmap=self.t_nsmap))
-                    elif span_child.tag == '{{{0}}}line-break'.format(self.nsmap['text']):
-                        self.paragraphs[-1][-1][0].append(etree.Element('{{{0}}}br'.format(nsmap['toraman'])))
-                    elif span_child.tag == '{{{0}}}tab'.format(self.nsmap['text']):
-                        self.paragraphs[-1][-1][0].append(etree.Element('{{{0}}}tab'.format(nsmap['toraman'])))
-                    elif span_child.tag == '{{{0}}}s'.format(self.nsmap['text']):
-                        if (len(self.paragraphs[-1][-1][0]) == 0
-                        or self.paragraphs[-1][-1][0][-1].tag != '{{{0}}}text'.format(nsmap['toraman'])):
-                            self.paragraphs[-1][-1][0].append(etree.Element('{{{0}}}text'.format(nsmap['toraman'])))
-                            self.paragraphs[-1][-1][0][-1].text = ' '
-                        else:
-                            self.paragraphs[-1][-1][0][-1].text += ' '
-
-                    elif span_child.tag == '{{{0}}}span'.format(self.nsmap['text']):
-                        active_ftags = True
-                        self.paragraphs[-1][-1][1] = (run_properties, 'Beginning')
-                        extract_span(span_child, child_element, paragraph_continues)
-
-                    if span_child.tail is not None:
-                        if (len(self.paragraphs[-1][-1][0]) == 0
-                        or self.paragraphs[-1][-1][0][-1].tag != '{{{0}}}text'.format(nsmap['toraman'])):
-                            self.paragraphs[-1][-1][0].append(etree.Element('{{{0}}}text'.format(nsmap['toraman'])))
-                            self.paragraphs[-1][-1][0][-1].text = span_child.tail
-                        else:
-                            self.paragraphs[-1][-1][0][-1].text += span_child.tail
-                else:
-                    if active_ftags:
-                        self.paragraphs[-1].append((etree.Element('{{{0}}}run'.format(nsmap['toraman'])), (run_properties, 'End')))
-                        active_ftags = False
+            from .sfhelper import extract_od
 
             sf = zipfile.ZipFile(file_path)
+            self.master_files.append(['styles.xml', sf.open('styles.xml')])
+            self.master_files.append(['content.xml', sf.open('content.xml')])
             for zip_child in sf.namelist():
-                if ('content.xml' in zip_child
-                or 'styles.xml' in zip_child):
+                if zip_child != 'content.xml' and zip_child.endswith('content.xml'):
                     self.master_files.append([zip_child, sf.open(zip_child)])
             sf.close()
 
             assert self.master_files
             self.file_type = 'odt'
-
 
             for master_file in self.master_files:
                 master_file[1] = etree.parse(master_file[1])
@@ -261,228 +207,79 @@ class SourceFile:
                 master_file[1] = master_file[1].getroot()
                 self.nsmap = master_file[1].nsmap
 
-                for paragraph_element in master_file[1].xpath('office:body/office:text/text:p|office:body/office:text/table:table//text:p|office:master-styles/style:master-page/style:header/text:p|office:master-styles/style:master-page/style:footer/text:p', namespaces=self.nsmap):
-                    paragraph_continues = False
+                for paragraph_element in master_file[1].xpath('office:body/office:text/text:p|office:body/office:text/table:table//text:p|office:body/office:text/draw:frame/draw:text-box/text:p|office:body/office:text/text:list/text:list-item/text:p|office:body/office:chart//text:p|office:master-styles/style:master-page/style:header/text:p|office:master-styles/style:master-page/style:footer/text:p', namespaces=self.nsmap):
+                    extract_od(self, paragraph_element, paragraph_element.getparent())
 
-                    if paragraph_element.text is not None:
-                        self.paragraphs.append([[etree.Element('{{{0}}}run'.format(nsmap['toraman']))]])
+        elif file_path.lower().endswith('.ods'):
 
-                        self.paragraphs[-1][-1][0].append(etree.Element('{{{0}}}text'.format(nsmap['toraman'])))
-                        self.paragraphs[-1][-1][0][-1].text = paragraph_element.text
-                        paragraph_element.text = None
-                        paragraph_element.insert(0, etree.Element('{{{0}}}paragraph'.format(nsmap['toraman']),
-                                                                    no=str(len(self.paragraphs))))
-                        paragraph_continues = True
+            from .sfhelper import extract_od
 
-                    for paragraph_child in paragraph_element:
+            sf = zipfile.ZipFile(file_path)
+            self.master_files.append(['content.xml', sf.open('content.xml')])
+            for zip_child in sf.namelist():
+                if zip_child != 'content.xml' and zip_child.endswith('content.xml'):
+                    self.master_files.append([zip_child, sf.open(zip_child)])
+            sf.close()
 
-                        if paragraph_child.tag == '{{{0}}}frame'.format(self.nsmap['draw']):
-                            if paragraph_child[0].tag == '{{{0}}}text-box'.format(self.nsmap['draw']):
-                                for tb_paragraph_element in paragraph_child[0].findall('text:p', self.nsmap):
-                                    paragraph_continues = False
-                                    if tb_paragraph_element.text is not None:
-                                        self.paragraphs.append([[etree.Element('{{{0}}}run'.format(nsmap['toraman']))]])
+            assert self.master_files
+            self.file_type = 'ods'
+            self.sheets = {}
 
-                                        self.paragraphs[-1][-1][0].append(etree.Element('{{{0}}}text'.format(nsmap['toraman'])))
-                                        self.paragraphs[-1][-1][0][-1].text = tb_paragraph_element.text
-                                        tb_paragraph_element.text = None
-                                        tb_paragraph_element.insert(0, etree.Element('{{{0}}}paragraph'.format(nsmap['toraman']),
-                                                                                    no=str(len(self.paragraphs))))
-                                        paragraph_continues = True
+            for master_file in self.master_files:
+                master_file[1] = etree.parse(master_file[1])
 
-                                    for tb_paragraph_child in tb_paragraph_element:
-                                        if tb_paragraph_child.tag == '{{{0}}}frame'.format(self.nsmap['draw']):
-                                            if (tb_paragraph_child.tail is not None
-                                            or paragraph_element.find('toraman:paragraph', nsmap) is not None
-                                            or paragraph_element.find('text:a', self.nsmap) is not None
-                                            or paragraph_element.find('text:span', self.nsmap) is not None
-                                            or paragraph_element.find('text.s', self.nsmap) is not None):
-                                                image_copy = tb_paragraph_child.__deepcopy__(True)
-                                                image_copy.tail = None
-                                                self.images.append(etree.tostring(image_copy))
-                                                if paragraph_continues:
-                                                    if len(self.paragraphs[-1][-1]) != 1:
-                                                        self.paragraphs[-1].append([etree.Element('{{{0}}}run'.format(nsmap['toraman']))])
-                                                else:
-                                                    if len(self.paragraphs[-1][-1]) != 1:
-                                                        self.paragraphs[-1].append([[etree.Element('{{{0}}}run'.format(nsmap['toraman']))]])
-                                                self.paragraphs[-1][-1][0].append(etree.Element('{{{0}}}image'.format(self.t_nsmap['toraman']),
-                                                                                no=str(len(self.images)),
-                                                                                nsmap=self.t_nsmap))
+                master_file[1] = master_file[1].getroot()
+                self.nsmap = master_file[1].nsmap
 
-                                        elif tb_paragraph_child.tag == '{{{0}}}span'.format(self.nsmap['text']):
-                                            extract_span(tb_paragraph_child, tb_paragraph_element, paragraph_continues)
+                if master_file[0] == 'content.xml':
+                    for sheet_element in master_file[1].xpath('office:body/office:spreadsheet/table:table', namespaces=self.nsmap):
+                        if '{{{0}}}name'.format(self.nsmap['table']) in sheet_element.attrib:
+                            self.paragraphs.append([[etree.Element('{{{0}}}run'.format(nsmap['toraman']))]])
+                            self.paragraphs[-1][-1][0].append(etree.Element('{{{0}}}text'.format(nsmap['toraman'])))
+                            self.paragraphs[-1][-1][0][-1].text = sheet_element.attrib['{{{0}}}name'.format(self.nsmap['table'])]
+                            self.sheets[sheet_element.attrib['{{{0}}}name'.format(self.nsmap['table'])]] = str(len(self.paragraphs))
 
-                                            paragraph_continues = True
+                            sheet_element.attrib['{{{0}}}name'.format(self.nsmap['table'])] = str(len(self.paragraphs))
 
-                                        if tb_paragraph_child.tail is not None:
-                                            if len(self.paragraphs[-1][-1]) == 1:
-                                                if (len(self.paragraphs[-1][-1][0]) > 0
-                                                and self.paragraphs[-1][-1][0][-1].tag == '{{{0}}}text'.format(nsmap['toraman'])):
-                                                    self.paragraphs[-1][-1][0][-1].text += tb_paragraph_child.tail
-                                                else:
-                                                    self.paragraphs[-1][-1][0].append(etree.Element('{{{0}}}text'.format(nsmap['toraman'])))
-                                                    self.paragraphs[-1][-1][0][-1].text = tb_paragraph_child.tail
-                                            else:
-                                                self.paragraphs[-1].append([etree.Element('{{{0}}}run'.format(nsmap['toraman']))])
-                                                self.paragraphs[-1][-1][0].append(etree.Element('{{{0}}}text'.format(nsmap['toraman'])))
-                                                self.paragraphs[-1][-1][0][-1].text = tb_paragraph_child.tail
+                        for paragraph_element in sheet_element.xpath('table:table-row/table:table-cell/text:p|table:shapes/draw:frame/draw:text-box/text:p', namespaces=self.nsmap):
+                            extract_od(self, paragraph_element, paragraph_element.getparent())
+                else:
+                    for paragraph_element in master_file[1].xpath('office:body/office:chart//text:p', namespaces=self.nsmap):
+                        paragraph_parent = paragraph_element.getparent()
+                        extract_od(self, paragraph_element, paragraph_parent)
 
-                                            tb_paragraph_child.tail = None
-                                else:
-                                    paragraph_continues = False
-
-                            elif paragraph_child[0].tag == '{{{0}}}image'.format(self.nsmap['draw']):
-                                if (paragraph_child.tail is not None
-                                or paragraph_element.find('toraman:paragraph', nsmap) is not None
-                                or paragraph_element.find('text:a', self.nsmap) is not None
-                                or paragraph_element.find('text:span', self.nsmap) is not None
-                                or paragraph_element.find('text:s', self.nsmap) is not None):
-                                    image_copy = paragraph_child.__deepcopy__(True)
-                                    image_copy.tail = None
-                                    self.images.append(etree.tostring(image_copy))
-
-                                    if paragraph_continues:
-                                        if len(self.paragraphs[-1][-1]) != 1:
-                                            self.paragraphs[-1].append([etree.Element('{{{0}}}run'.format(nsmap['toraman']))])
-
-                                        paragraph_element.remove(paragraph_child)
-
-                                    else:
-                                        self.paragraphs.append([[etree.Element('{{{0}}}run'.format(nsmap['toraman']))]])
-
-                                        paragraph_element.replace(paragraph_child, etree.Element('{{{0}}}paragraph'.format(nsmap['toraman']),
-                                                                                                no=str(len(self.paragraphs))))
-
-                                    self.paragraphs[-1][-1][0].append(etree.Element('{{{0}}}image'.format(self.t_nsmap['toraman']),
-                                                                    no=str(len(self.images)),
-                                                                    nsmap=self.t_nsmap))
-
-                                    paragraph_continues = True
-
-                        elif paragraph_child.tag == '{{{0}}}a'.format(self.nsmap['text']):
-                            hyperlink_tag = paragraph_child.__deepcopy__(True)
-                            hyperlink_tag.text = None
-                            for hyperlink_child in hyperlink_tag:
-                                hyperlink_tag.remove(hyperlink_child)
-                            hyperlink_tag.tail = None
-                            hyperlink_tag = etree.tostring(hyperlink_tag)
-
-                            if not paragraph_continues:
-                                self.paragraphs.append([[None, None, hyperlink_tag, 'beginning']])
-
-                                paragraph_element.replace(paragraph_child, etree.Element('{{{0}}}paragraph'.format(nsmap['toraman']),
-                                                                                        no=str(len(self.paragraphs))))
-
-                                paragraph_continues = True
-
+                        for cell_reference in paragraph_parent.xpath('draw:g/svg:desc', namespaces=self.nsmap):
+                            cell_reference_text = cell_reference.text
+                            for sheet_reference in regex.findall(':?([^:]+?)\.', cell_reference_text):
+                                if sheet_reference in self.sheets:
+                                    cell_reference_text = cell_reference_text.replace(sheet_reference, '{{{0}}}'.format(self.sheets[sheet_reference]), 1)
                             else:
-                                self.paragraphs[-1].append([None, None, hyperlink_tag, 'beginning'])
+                                cell_reference.text = cell_reference_text
 
-                                paragraph_element.remove(paragraph_child)
+        elif file_path.lower().endswith('.odp'):
 
-                            if paragraph_child.text is not None:
-                                self.paragraphs[-1].append([etree.Element('{{{0}}}run'.format(nsmap['toraman']))])
-                                self.paragraphs[-1][-1][0].append(etree.Element('{{{0}}}text'.format(nsmap['toraman'])))
-                                self.paragraphs[-1][-1][0][-1].text = paragraph_child.text
+            from .sfhelper import extract_od
 
-                            for a_element_child in paragraph_child:
-                                if a_element_child.tag == '{{{0}}}span'.format(self.nsmap['text']):
-                                    extract_span(a_element_child, paragraph_child, paragraph_continues)
+            sf = zipfile.ZipFile(file_path)
+            self.master_files.append(['content.xml', sf.open('content.xml')])
+            for zip_child in sf.namelist():
+                if zip_child != 'content.xml' and zip_child.endswith('content.xml'):
+                    self.master_files.append([zip_child, sf.open(zip_child)])
+            sf.close()
 
-                                if a_element_child.tail is not None:
-                                    self.paragraphs[-1].append([etree.Element('{{{0}}}run'.format(nsmap['toraman']))])
-                                    self.paragraphs[-1][-1][0].append(etree.Element('{{{0}}}text'.format(nsmap['toraman'])))
-                                    self.paragraphs[-1][-1][0][-1].text = a_element_child.tail
+            assert self.master_files
+            self.file_type = 'ods'
+            self.sheets = {}
 
-                            self.paragraphs[-1].append([None, None, hyperlink_tag, 'end'])
+            for master_file in self.master_files:
+                master_file[1] = etree.parse(master_file[1])
 
-                        elif paragraph_child.tag == '{{{0}}}span'.format(self.nsmap['text']):
-                            extract_span(paragraph_child, paragraph_element, paragraph_continues)
+                master_file[1] = master_file[1].getroot()
+                self.nsmap = master_file[1].nsmap
 
-                            paragraph_continues = True
-
-                        elif paragraph_child.tag == '{{{0}}}line-break'.format(self.nsmap['text']):
-                            if paragraph_continues:
-                                if len(self.paragraphs[-1][-1]) != 1:
-                                    self.paragraphs[-1].append([etree.Element('{{{0}}}run'.format(nsmap['toraman']))])
-
-                                self.paragraphs[-1][-1][0].append(etree.Element('{{{0}}}br'.format(nsmap['toraman'])))
-
-                                paragraph_element.remove(paragraph_child)
-
-                        elif paragraph_child.tag == '{{{0}}}tab'.format(self.nsmap['text']):
-                            if paragraph_continues:
-                                if len(self.paragraphs[-1][-1]) != 1:
-                                    self.paragraphs[-1].append([etree.Element('{{{0}}}run'.format(nsmap['toraman']))])
-
-                                self.paragraphs[-1][-1][0].append(etree.Element('{{{0}}}tab'.format(nsmap['toraman'])))
-
-                                paragraph_element.remove(paragraph_child)
-
-                        elif paragraph_child.tag == '{{{0}}}s'.format(self.nsmap['text']):
-                            if paragraph_continues:
-                                if len(self.paragraphs[-1][-1]) == 1:
-                                    self.paragraphs[-1].append([etree.Element('{{{0}}}run'.format(nsmap['toraman']))])
-                                    if (len(self.paragraphs[-1][-1][0]) > 0
-                                    and self.paragraphs[-1][-1][0][-1].tag == '{{{0}}}text'.format(nsmap['toraman'])):
-                                        self.paragraphs[-1][-1][0][-1].text += ' '
-                                    else:
-                                        self.paragraphs[-1][-1][0].append(etree.Element('{{{0}}}text'.format(nsmap['toraman'])))
-                                        self.paragraphs[-1][-1][0][-1].text = ' '
-                                else:
-                                    self.paragraphs[-1].append([etree.Element('{{{0}}}run'.format(nsmap['toraman']))])
-                                    self.paragraphs[-1][-1][0].append(etree.Element('{{{0}}}text'.format(nsmap['toraman'])))
-                                    self.paragraphs[-1][-1][0][-1].text = ' '
-
-                                paragraph_element.remove(paragraph_child)
-
-                        elif paragraph_child.tag == '{{{0}}}custom-shape'.format(self.nsmap['draw']):
-                            for cs_paragraph in paragraph_child.findall('{{{0}}}p'.format(self.nsmap['text'])):
-                                for cs_child in cs_paragraph:
-                                    if cs_child.tag == '{{{0}}}span'.format(self.nsmap['text']):
-                                        extract_span(cs_child, cs_paragraph, paragraph_continues)
-
-                        elif paragraph_child.tag == '{{{0}}}paragraph'.format(nsmap['toraman']):
-                            pass
-                        else:
-                            if paragraph_continues:
-                                self.miscellaneous_tags.append(etree.tostring(paragraph_child))
-                                if len(self.paragraphs[-1][-1]) != 1:
-                                    self.paragraphs[-1].append([etree.Element('{{{0}}}run'.format(nsmap['toraman']))])
-
-                                self.paragraphs[-1][-1][0].append(etree.Element('{{{0}}}{1}'.format(nsmap['toraman'], paragraph_child.tag.split('}')[1]),
-                                                                                no=str(len(self.miscellaneous_tags))))
-
-                                paragraph_element.remove(paragraph_child)
-
-                        if paragraph_child.tail is not None:
-                            if not paragraph_continues:
-                                self.paragraphs.append([[etree.Element('{{{0}}}run'.format(nsmap['toraman']))]])
-
-                                paragraph_element.insert(paragraph_element.index(paragraph_child) + 1, etree.Element('{{{0}}}paragraph'.format(nsmap['toraman']),
-                                                                                                                    no=str(len(self.paragraphs))))
-
-                                paragraph_continues = True
-
-                            if len(self.paragraphs[-1][-1]) == 1:
-                                if (len(self.paragraphs[-1][-1][0]) > 0
-                                and self.paragraphs[-1][-1][0][-1].tag == '{{{0}}}text'.format(nsmap['toraman'])):
-                                    self.paragraphs[-1][-1][0][-1].text += paragraph_child.tail
-                                else:
-                                    self.paragraphs[-1][-1][0].append(etree.Element('{{{0}}}text'.format(nsmap['toraman'])))
-                                    self.paragraphs[-1][-1][0][-1].text = paragraph_child.tail
-                            else:
-                                self.paragraphs[-1].append([etree.Element('{{{0}}}run'.format(nsmap['toraman']))])
-                                self.paragraphs[-1][-1][0].append(etree.Element('{{{0}}}text'.format(nsmap['toraman'])))
-                                self.paragraphs[-1][-1][0][-1].text = paragraph_child.tail
-
-                            paragraph_child.tail = None
-
-                    if (len(self.paragraphs[-1]) == 1
-                    and len(self.paragraphs[-1][0]) == 1
-                    and len(self.paragraphs[-1][0][0]) == 0):
-                        self.paragraphs = self.paragraphs[:-1]
+                for paragraph_element in master_file[1].xpath('office:body//text:p', namespaces=self.nsmap):
+                    paragraph_parent = paragraph_element.getparent()
+                    extract_od(self, paragraph_element, paragraph_parent)
 
         # Filetype-specific processing ends here.
 
@@ -494,8 +291,7 @@ class SourceFile:
             for run in self.paragraphs[paragraph_index]:
                 if len(run) == 2 and run[1] is not None:
                     segment_type = None
-                    if type(run[1]) == tuple and len(run[1]) == 2:
-                        run = list(run)
+                    if type(run[1]) == list and len(run[1]) == 2:
                         segment_type = run[1][1]
                         run[1] = run[1][0]
                     if run[1] not in self.tags:
@@ -649,12 +445,12 @@ class SourceFile:
                     if toraman_element.text is None:
                         continue
                     _text = toraman_element.text.split(placeholders[1])
-                    if _text[-1] is '':
-                        _text = _text[:-1]
                     for _text_i in range(len(_text)):
                         if _text_i != 0:
                             organised_paragraph[0].append(etree.Element('{{{0}}}source'.format(self.t_nsmap['toraman']),
                                                                         nsmap=self.t_nsmap))
+                            if _text[_text_i] is '':
+                                continue
                         organised_paragraph[0][-1].append(etree.Element('{{{0}}}text'.format(self.t_nsmap['toraman']),
                                                             nsmap=self.t_nsmap))
                         organised_paragraph[0][-1][-1].text = _text[_text_i]
@@ -666,6 +462,8 @@ class SourceFile:
                     organised_paragraph[0].append(etree.Element('{{{0}}}non-text-segment'.format(self.t_nsmap['toraman']),
                                                                 nsmap=self.t_nsmap))
                     organised_paragraph[0][-1].append(toraman_element)
+                    organised_paragraph[0].append(etree.Element('{{{0}}}source'.format(self.t_nsmap['toraman']),
+                                                nsmap=self.t_nsmap))
                 elif toraman_element.tag == '{{{0}}}br'.format(self.t_nsmap['toraman']):
                     if (len(organised_paragraph[0][-1]) == 0
                             or (len(organised_paragraph[0][-1]) == 1
@@ -674,14 +472,15 @@ class SourceFile:
                         organised_paragraph[0] = organised_paragraph[0][:-1]
                         organised_paragraph[0].append(etree.Element('{{{0}}}non-text-segment'.format(self.t_nsmap['toraman']),
                                                                     nsmap=self.t_nsmap))
+                        organised_paragraph[0][-1].append(toraman_element)
+                        organised_paragraph[0].append(etree.Element('{{{0}}}source'.format(self.t_nsmap['toraman']),
+                                                    nsmap=self.t_nsmap))
 
-                    organised_paragraph[0][-1].append(toraman_element)
-                    organised_paragraph[0].append(etree.Element('{{{0}}}source'.format(self.t_nsmap['toraman']),
-                                                        nsmap=self.t_nsmap))
+                    else:
+                        organised_paragraph[0][-1].append(toraman_element)
 
                 else:
                     organised_paragraph[0][-1].append(toraman_element)
-
             if (len(organised_paragraph[0][-1]) == 0
                     or (len(organised_paragraph[0][-1]) == 1
                     and organised_paragraph[0][-1][-1].tag == '{{{0}}}text'.format(self.t_nsmap['toraman'])
@@ -693,10 +492,41 @@ class SourceFile:
                     continue
                 if (organised_segment[0].tag == '{{{0}}}tag'.format(self.t_nsmap['toraman'])
                 and organised_segment[0].attrib['type'] == 'end'):
-                    organised_segment.remove(organised_segment[0])
+                    if (organised_segment.getprevious()
+                    and organised_segment.getprevious().xpath('toraman:tag[@type="beginning][@no="{0}"]'.format(organised_segment[0].attrib['no']))):
+                        organised_segment.getprevious().append(organised_segment[0])
+                    elif len(organised_segment) == 1:
+                        organised_segment.tag = '{{{0}}}non-text-segment'.format(self.t_nsmap['toraman'])
+                        continue
+                    else:
+                        _segment_i = organised_paragraph[0].index(organised_segment)
+                        if organised_paragraph[0][_segment_i-1].tag != '{{{0}}}non-text-segment'.format(self.t_nsmap['toraman']):
+                            organised_paragraph[0].insert(_segment_i,
+                                                        etree.Element('{{{0}}}non-text-segment'.format(self.t_nsmap['toraman']),
+                                                                    nsmap=self.t_nsmap))
+
+                        organised_paragraph[0][_segment_i].append(organised_segment[0])
                 if (organised_segment[-1].tag == '{{{0}}}tag'.format(self.t_nsmap['toraman'])
                 and organised_segment[-1].attrib['type'] == 'beginning'):
-                    organised_segment.remove(organised_segment[-1])
+                    if (organised_segment.getnext()
+                    and organised_segment.getnext().xpath('toraman:tag[@type="end"][@no="{0}"]'.format(organised_segment[0].attrib['no']), namespaces=self.t_nsmap)):
+                        organised_segment.getnext().append(organised_segment[0])
+                    elif len(organised_segment) == 1:
+                        organised_segment.tag = '{{{0}}}non-text-segment'.format(self.t_nsmap['toraman'])
+                        continue
+                    else:
+                        _segment_i = organised_paragraph[0].index(organised_segment)
+                        if organised_paragraph[0][_segment_i+1].tag != '{{{0}}}non-text-segment'.format(self.t_nsmap['toraman']):
+                            _segment_i += 1
+                            organised_paragraph[0].insert(_segment_i,
+                                                        etree.Element('{{{0}}}non-text-segment'.format(self.t_nsmap['toraman']),
+                                                                    nsmap=self.t_nsmap))
+
+                        organised_paragraph[0][_segment_i].append(organised_segment[0])
+
+                if len(organised_segment) == 0:
+                    organised_paragraph[0].remove(organised_segment)
+                    continue
 
                 active_ftags = []
                 no_text_yet = True
@@ -705,14 +535,38 @@ class SourceFile:
                 for organised_segment_child in organised_segment:
                     if organised_segment_child.tag == '{{{0}}}tag'.format(self.t_nsmap['toraman']):
                         if organised_segment_child.attrib['type'] == 'beginning':
-                            active_ftags.append(organised_segment_child.attrib['no'])
+                            if (organised_segment.index(organised_segment_child) == 0
+                            and not organised_segment.xpath('toraman:tag[@type="end"][@no="{0}"]'.format(organised_segment_child.attrib['no']), namespaces=self.t_nsmap)):
+                                if (organised_segment.getprevious()
+                                and organised_segment.getprevious().tag == '{{{0}}}non-text-segment'.format(self.t_nsmap['toraman'])):
+                                    organised_segment.getprevious().append(organised_segment)
+                                else:
+                                    _segment_i = organised_paragraph[0].index(organised_segment)
+                                    organised_paragraph[0].insert(_segment_i,
+                                                                etree.Element('{{{0}}}non-text-segment'.format(self.t_nsmap['toraman']),
+                                                                            nsmap=self.t_nsmap))
+                                    organised_paragraph[0][_segment_i].append(organised_segment_child)
+                            else:
+                                active_ftags.append(organised_segment_child.attrib['no'])
                         elif organised_segment_child.attrib['type'] == 'end':
                             if organised_segment_child.attrib['no'] in active_ftags:
                                 active_ftags.remove(organised_segment_child.attrib['no'])
                             else:
-                                _tag = organised_segment_child.__deepcopy__(True)
-                                _tag.attrib['type'] = 'beginning'
-                                organised_segment.insert(0, _tag)
+                                if organised_segment.index(organised_segment_child) == len(organised_segment)-1:
+                                    if (organised_segment.getnext() 
+                                    and organised_segment.getnext().tag == '{{{0}}}non-text-segment'.format(self.t_nsmap['toraman'])):
+                                        organised_segment.getnext().append(organised_segment_child)
+                                    else:
+                                        _segment_i = organised_paragraph[0].index(organised_segment) + 1
+                                        organised_paragraph[0].insert(_segment_i,
+                                                                    etree.Element('{{{0}}}non-text-segment'.format(self.t_nsmap['toraman']),
+                                                                                nsmap=self.t_nsmap))
+                                        organised_paragraph[0][_segment_i].append(organised_segment_child)
+
+                                else:
+                                    _tag = organised_segment_child.__deepcopy__(True)
+                                    _tag.attrib['type'] = 'beginning'
+                                    organised_segment.insert(0, _tag)
 
                     if no_text_yet:
                         if organised_segment_child.tag == '{{{0}}}text'.format(self.t_nsmap['toraman']):
