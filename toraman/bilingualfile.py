@@ -343,6 +343,29 @@ class BilingualFile:
                         if child_i == 0 and paragraph_placeholder in paragraph_placeholder_parent:
                             paragraph_placeholder_parent.remove(paragraph_placeholder)
 
+        elif self.file_type == 'txt':
+            if not os.path.exists(output_directory):
+                os.mkdir(output_directory)
+
+            for target_paragraph in target_paragraphs:
+                final_paragraph = []
+
+                for child in target_paragraph:
+                    final_paragraph.append(child.text)
+                else:
+                    final_paragraph = ''.join(final_paragraph)
+
+                final_paragraphs.append(final_paragraph)
+
+            with open(os.path.join(output_directory, self.file_name), 'w') as target_file:
+                for final_paragraph in final_paragraphs:
+                    if final_paragraph is not None:
+                        target_file.write(final_paragraph + '\n')
+                    else:
+                        target_file.write('\n')
+
+            return
+
         # Filetype-specific processing ends here.
 
         with zipfile.ZipFile(source_file_path) as zf:
