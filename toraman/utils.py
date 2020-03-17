@@ -6,6 +6,8 @@ from lxml import etree
 
 nsmap = {'toraman': 'https://cat.toraman.pro'}
 
+supported_file_formats = ('.docx', '.odp', '.ods', '.odt', '.txt', '.xliff')
+
 def get_current_time_in_utc():
     return datetime.datetime.utcnow().strftime(r'%Y%M%dT%H%M%SZ')
 
