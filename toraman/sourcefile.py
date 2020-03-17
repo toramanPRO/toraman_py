@@ -281,6 +281,54 @@ class SourceFile:
                     paragraph_parent = paragraph_element.getparent()
                     extract_od(self, paragraph_element, paragraph_parent)
 
+        elif file_path.lower().endswith('.txt'):
+
+            self.file_type = 'txt'
+
+            self.master_files.append([[]])
+
+            with open(file_path, 'r', encoding='UTF-8') as source_file:
+                for line in source_file:
+                    self.master_files[0][0].append(etree.Element('{{{0}}}paragraph'.format(self.t_nsmap['toraman']),
+                                                                no=str(len(self.paragraphs)+1)))
+                    line = line.strip()
+                    if line != '':
+                        self.paragraphs.append([[etree.Element('{{{0}}}run'.format(nsmap['toraman']))]])
+                        self.paragraphs[-1].append([etree.Element('{{{0}}}run'.format(nsmap['toraman']))])
+                        self.paragraphs[-1][-1][0].append(etree.Element('{{{0}}}text'.format(nsmap['toraman'])))
+                        self.paragraphs[-1][-1][0][-1].text = line
+                    else:
+                        self.paragraphs.append([])
+
+        elif file_path.lower().endswith('.xliff'):
+
+            self.file_type = 'xliff'
+
+            sf = etree.parse(file_path)
+            sf = sf.getroot()
+            self.master_files.append([[sf]])
+            self.nsmap = sf.nsmap
+
+            for file_element in sf.findall('{{{0}}}file'.format(self.nsmap[None])):
+                if file_element.attrib['datatype'] != 'plaintext':
+                    continue
+                for translation_unit in file_element.findall('{{{0}}}body/{{{0}}}trans-unit'.format(self.nsmap[None])):
+                    if len(translation_unit[0]) > 0 or len(translation_unit[1]) > 0:
+                        continue
+                    segment_element = etree.Element('{{{0}}}segment'.format(self.t_nsmap['toraman']))
+                    segment_element.append(etree.Element('{{{0}}}source'.format(self.t_nsmap['toraman'])))
+                    segment_element[0].append(etree.Element('{{{0}}}text'.format(self.t_nsmap['toraman'])))
+                    segment_element[0][0].text = translation_unit.find('{{{0}}}source'.format(self.nsmap[None])).text
+                    segment_element.append(etree.Element('{{{0}}}status'.format(self.t_nsmap['toraman'])))
+                    segment_element.append(etree.Element('{{{0}}}target'.format(self.t_nsmap['toraman'])))
+                    segment_element[2].append(etree.Element('{{{0}}}text'.format(self.t_nsmap['toraman'])))
+                    segment_element[2][0].text = translation_unit.find('{{{0}}}target'.format(self.nsmap[None])).text
+                    self.paragraphs.append([segment_element])
+
+                    translation_unit.attrib['{{{0}}}paragraph-no'.format(self.t_nsmap['toraman'])] = str(len(self.paragraphs))
+            else:
+                return
+
         # Filetype-specific processing ends here.
 
         toraman_link_template = etree.Element('{{{0}}}link'.format(self.t_nsmap['toraman']))
@@ -553,7 +601,7 @@ class SourceFile:
                                 active_ftags.remove(organised_segment_child.attrib['no'])
                             else:
                                 if organised_segment.index(organised_segment_child) == len(organised_segment)-1:
-                                    if (organised_segment.getnext() 
+                                    if (organised_segment.getnext()
                                     and organised_segment.getnext().tag == '{{{0}}}non-text-segment'.format(self.t_nsmap['toraman'])):
                                         organised_segment.getnext().append(organised_segment_child)
                                     else:
@@ -651,6 +699,10 @@ class SourceFile:
                     new_s_element.append(segment_element)
                     new_s_element.append(etree.Element('{{{0}}}status'.format(self.t_nsmap['toraman'])))
                     new_s_element.append(etree.Element('{{{0}}}target'.format(self.t_nsmap['toraman'])))
+                elif segment_element.tag == '{{{0}}}segment'.format(self.t_nsmap['toraman']):
+                    _counter += 1
+                    new_s_element = segment_element.__deepcopy__(True)
+                    new_s_element.attrib['no'] = str(_counter)
                 else:
                     new_s_element = segment_element
                 new_p_element.append(new_s_element)
@@ -689,9 +741,15 @@ class SourceFile:
                                             name=self.file_name,
                                             type=self.file_type))
         for master_file in self.master_files:
-            new_sf_element = etree.Element('{{{0}}}internal_file'.format(self.t_nsmap['toraman']),
-                                           internal_path=master_file[0])
-            new_sf_element.append(master_file[1])
+            if len(master_file) == 2:
+                new_sf_element = etree.Element('{{{0}}}internal_file'.format(self.t_nsmap['toraman']),
+                                            internal_path=master_file[0])
+                new_sf_element.append(master_file[1])
+            else:
+                new_sf_element = etree.Element('{{{0}}}internal_file'.format(self.t_nsmap['toraman']))
+                for paragraph_placeholder in master_file[0]:
+                    new_sf_element.append(paragraph_placeholder)
+
             bilingual_file[-1].append(new_sf_element)
 
         bilingual_file.getroottree().write(os.path.join(output_directory, self.file_name) + '.xml',
