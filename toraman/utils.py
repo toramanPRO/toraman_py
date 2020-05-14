@@ -4,6 +4,8 @@ import re
 from html import escape
 from lxml import etree
 
+from .language_codes import language_codes
+
 nsmap = {'toraman': 'https://cat.toraman.pro'}
 
 supported_file_formats = ('.docx', '.odp', '.ods', '.odt', '.txt', '.xliff')
